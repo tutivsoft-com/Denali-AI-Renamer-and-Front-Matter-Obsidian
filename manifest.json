@@ -5,7 +5,6 @@
 	"minAppVersion": "1.5.0",
 	"description": "Rename Markdown notes and generate searchable frontmatter with OpenRouter AI.",
 	"author": "TutivSoft",
-	"authorUrl": "https://github.com/tutivsoft-com/obsidian-denali-ai-file-renamer-front-matter/",
-	"fundingUrl": "https://plu.ug/l/pd2q4c8hr",
+	"authorUrl": "https://github.com/tutivsoft-com",
 	"isDesktopOnly": false
 }
