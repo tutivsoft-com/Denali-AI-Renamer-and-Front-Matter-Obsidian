@@ -49,12 +49,14 @@ generated from that source with esbuild. Release assets are `main.js`,
 GitHub release assets are attested by the repository workflow so their
 provenance can be verified independently.
 
-## Public Repository Checklist
+## Public Repository Workflow
 
-This folder is the complete public repository staging folder. Copy its contents
-into the public repository root, including `.github/workflows/`. Do not upload
-credentials, `node_modules`, logs, or private project metadata.
+This is the private/source checkout. Copy the contents of the sibling
+[`../publish/`](../publish/) staging folder into the separate public GitHub
+repository root. Keep credentials, `node_modules`, and private project files
+out of the public repository.
 
-For each release, upload only `main.js`, `manifest.json`, and `styles.css` as
-release assets. The release tag must exactly match the `version` in
-`manifest.json`.
+The public root needs `README.md`, `LICENSE`, `manifest.json`, `main.ts`,
+`main.js`, `styles.css`, and `.github/workflows/release-attestations.yml`.
+For releases, upload only `main.js`, `manifest.json`, and `styles.css`; the
+release tag must exactly match `manifest.json` `version`.

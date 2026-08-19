@@ -23,10 +23,8 @@ const CONSTANCE_BASE_URL = "https://app.tutivsoft.com";
 const CONSTANCE_APP_ID = "denali-ai-file-renamer-front-matter";
 
 // One-time credit tiers, matching the catalog row already added to
-// map_product_price_paddle.csv. The Pdl_price_id_OneTime* values are
-// PENDING_PROVISIONING placeholders until real Paddle products/prices are
-// created with live Paddle dashboard access — the Buy buttons will work
-// once those are provisioned, same known limitation Antero shipped with.
+// map_product_price_paddle.csv. The Pdl_price_id_OneTime* values are real
+// live Paddle ids (provisioned 2026-08-19, App_Environment=live).
 interface DenaliCreditTier {
     label: string;
     amountUsd: number;
@@ -34,9 +32,9 @@ interface DenaliCreditTier {
     priceId: string;
 }
 const DENALI_CREDIT_TIERS: DenaliCreditTier[] = [
-    { label: "$1 → 50 credits", amountUsd: 1, credits: 50, priceId: "PENDING_PROVISIONING" },
-    { label: "$5 → 300 credits", amountUsd: 5, credits: 300, priceId: "PENDING_PROVISIONING" },
-    { label: "$15 → 1000 credits", amountUsd: 15, credits: 1000, priceId: "PENDING_PROVISIONING" },
+    { label: "$1 → 50 credits", amountUsd: 1, credits: 50, priceId: "pri_01m0b7gtqfncsz7sc4fc3aejpc" },
+    { label: "$5 → 300 credits", amountUsd: 5, credits: 300, priceId: "pri_01m0b7gvay5f3xmb80jd99ehzk" },
+    { label: "$15 → 1000 credits", amountUsd: 15, credits: 1000, priceId: "pri_01m0b7gvymzrp8b0jy32xsj7q2" },
 ];
 
 /**
@@ -2240,6 +2238,10 @@ class DenaliSettingTab extends PluginSettingTab {
                         const email = this.plugin.settings.billingEmail.trim();
                         if (!email || !email.includes('@')) {
                             new Notice('Please enter a valid billing email above before purchasing.', 5000);
+                            return;
+                        }
+                        if (!tier.priceId || tier.priceId === 'PENDING_PROVISIONING') {
+                            new Notice('Denali billing is not available yet because Paddle prices are still being provisioned.', 5000);
                             return;
                         }
                         const url = buildDenaliBuyUrl(tier.priceId, email, this.plugin.settings.constanceDeviceId);
