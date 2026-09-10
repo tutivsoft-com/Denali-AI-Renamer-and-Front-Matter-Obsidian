@@ -2,6 +2,8 @@
 
 Rename Markdown notes and generate searchable YAML frontmatter from note content using OpenRouter AI.
 
+Version: `4.20.1` · [Complete user guide](../docs/USER_GUIDE.md)
+
 ## Features
 
 - Generate concise or keyword-rich filenames from note content.
@@ -14,14 +16,14 @@ Rename Markdown notes and generate searchable YAML frontmatter from note content
 ## Usage
 
 1. Install and enable Denali AI Renamer and Front Matter.
-2. Enter your OpenRouter API key in **Settings > Community plugins > Denali AI Renamer and Front Matter**.
+2. Open **Settings > Community plugins > Denali AI Renamer and Front Matter**. Add an OpenRouter API key in **Advanced settings** if your installation does not provide the built-in key fallback.
 3. Open a Markdown note and use the Denali command or context menu action.
 4. Review the proposed filename and frontmatter before applying changes.
 
 ## Network Use and Privacy
 
 - The plugin sends note content or selected note samples to OpenRouter at `https://openrouter.ai/api/v1/chat/completions` for the AI operation requested by the user.
-- The OpenRouter API key is entered by the user and stored in local plugin settings. It is not bundled in the plugin and is not fetched from a remote backup-key service.
+- A manually entered OpenRouter API key is stored in local plugin settings and takes precedence. If blank, Denali may use its built-in encrypted key fallback. No key is bundled in the plugin release.
 - Optional credit balance and purchase operations use TutivSoft Constance at `https://app.tutivsoft.com`. The plugin sends a random installation device ID, plugin ID, and credit transaction data for these operations.
 - Buying credits opens the TutivSoft checkout page in the user's browser. Payment is optional when using any available local free allowance.
 - The plugin may read and modify Markdown files inside the current Obsidian vault. It does not access files outside the vault.
