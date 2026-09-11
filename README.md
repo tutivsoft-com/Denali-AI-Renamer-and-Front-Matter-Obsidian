@@ -2,7 +2,7 @@
 
 Rename Markdown notes and generate searchable YAML frontmatter from note content using OpenRouter AI.
 
-Version: `4.20.1` · [Complete user guide](../docs/USER_GUIDE.md)
+Version: `4.20.2` · [Complete user guide](../docs/USER_GUIDE.md)
 
 ## Features
 
