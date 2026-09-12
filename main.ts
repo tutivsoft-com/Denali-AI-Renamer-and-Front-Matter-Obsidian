@@ -184,8 +184,8 @@ interface DenaliCreditTier {
 }
 const DENALI_CREDIT_TIERS: DenaliCreditTier[] = [
     { label: "$1 → 50 credits", amountUsd: 1, credits: 50, priceId: "pri_01m0b7gtqfncsz7sc4fc3aejpc" },
-    { label: "$5 → 300 credits", amountUsd: 5, credits: 300, priceId: "pri_01m0b7gvay5f3xmb80jd99ehzk" },
-    { label: "$15 → 1000 credits", amountUsd: 15, credits: 1000, priceId: "pri_01m0b7gvymzrp8b0jy32xsj7q2" },
+    { label: "$5 → 400 credits", amountUsd: 5, credits: 400, priceId: "pri_01m0b7gvay5f3xmb80jd99ehzk" },
+    { label: "$15 → 1600 credits", amountUsd: 15, credits: 1600, priceId: "pri_01m0b7gvymzrp8b0jy32xsj7q2" },
 ];
 
 /**
@@ -402,6 +402,7 @@ interface DenaliSettings {
     purchasedCredits: number; // Local mirror of the real Constance CreditBalance
     constanceDeviceId: string; // Stable per-install id; doubles as external_customer_id/machine_id
     billingEmail: string; // Entered by the user, sent to Constance's checkout only
+    pendingSpendEvents: Array<{ eventId: string; amount: number }>;
     // --- END CONSTANCE ---
 }
 
@@ -531,6 +532,7 @@ const DEFAULT_SETTINGS: DenaliSettings = {
 
     // --- CONSTANCE: Central billing defaults ---
     purchasedCredits: 0,
+    pendingSpendEvents: [],
     constanceDeviceId: '', // Generated on first onload() via crypto.getRandomValues
     billingEmail: '',
     // --- END CONSTANCE ---
@@ -645,7 +647,9 @@ export default class DenaliAIFileRenamer extends Plugin {
         }
         // Sync the local purchased-credit mirror from Constance in the background.
         // Fire-and-forget: does not block plugin startup, and errors are handled internally.
-        void this.syncPurchasedCreditsFromConstance();
+        this.settings.pendingSpendEvents = Array.isArray(this.settings.pendingSpendEvents) ? this.settings.pendingSpendEvents.filter(item => item && typeof item.eventId === 'string' && Number.isInteger(item.amount) && item.amount > 0) : [];
+        await this.saveSettings();
+        void this.syncPurchasedCreditsFromConstance().then(() => this.retryPendingSpendEvents());
         // --- END CONSTANCE ---
 
         // Set the backup folder path to the new structure
@@ -876,12 +880,21 @@ export default class DenaliAIFileRenamer extends Plugin {
      *          any other failure (network/5xx) — caller should fail OPEN and let the
      *          next sync correct the local mirror, per this app's agreed policy.
      */
-    async spendConstanceCredits(amount: number): Promise<{ outcome: 'success' | 'insufficient' | 'error'; newPurchasedBalance?: number }> {
+    async retryPendingSpendEvents(): Promise<void> {
+        for (const pending of [...this.settings.pendingSpendEvents]) {
+            const result = await this.spendConstanceCredits(pending.amount, pending.eventId);
+            if (result.outcome === 'error') break;
+            this.settings.pendingSpendEvents = this.settings.pendingSpendEvents.filter(item => item.eventId !== pending.eventId);
+            this.settings.purchasedCredits = result.outcome === 'success' ? (result.newPurchasedBalance ?? 0) : 0;
+            await this.saveSettings();
+        }
+    }
+
+    async spendConstanceCredits(amount: number, stableEventId: string = `denali-spend-${this.settings.constanceDeviceId}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`): Promise<{ outcome: 'success' | 'insufficient' | 'error'; newPurchasedBalance?: number }> {
         const deviceId = this.settings.constanceDeviceId;
         if (!deviceId || amount <= 0) {
             return { outcome: 'error' };
         }
-        const eventId = `denali-spend-${deviceId}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
         try {
             const response = await requestUrl({
                 url: `${CONSTANCE_BASE_URL}/api/v1/public/browser/credits/spend`,
@@ -892,7 +905,7 @@ export default class DenaliAIFileRenamer extends Plugin {
                     external_customer_id: deviceId,
                     machine_id: deviceId,
                     amount: amount,
-                    event_id: eventId,
+                    event_id: stableEventId,
                 }),
                 throw: false,
             });
@@ -1214,9 +1227,19 @@ class FileRenamer {
             return false;
         }
 
-        const spendResult = await this.plugin.spendConstanceCredits(remainder);
+        await this.plugin.retryPendingSpendEvents();
+        if (this.plugin.settings.pendingSpendEvents.length > 0) {
+            new Notice('Denali AI: a previous credit spend is still being reconciled. Try again when the connection is restored.', 5000);
+            return false;
+        }
+        const stableEventId = `denali-spend-${this.plugin.settings.constanceDeviceId}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+        this.plugin.settings.pendingSpendEvents.push({ eventId: stableEventId, amount: remainder });
+        await this.plugin.saveSettings();
+        const spendResult = await this.plugin.spendConstanceCredits(remainder, stableEventId);
 
         if (spendResult.outcome === 'insufficient') {
+            this.plugin.settings.pendingSpendEvents = this.plugin.settings.pendingSpendEvents.filter(item => item.eventId !== stableEventId);
+            await this.plugin.saveSettings();
             this.log(`Not enough purchased credits to cover the remaining ${remainder}. Required: ${cost}, Available: ${free + settings.purchasedCredits}`, true);
             new Notice(`Not enough credits! Required: ${cost}, Available: ${free + settings.purchasedCredits}. Buy more credits in Settings.`, 7000);
             return false;
@@ -1226,6 +1249,7 @@ class FileRenamer {
         settings.availableCredits = 0;
         if (spendResult.outcome === 'success' && typeof spendResult.newPurchasedBalance === 'number') {
             settings.purchasedCredits = spendResult.newPurchasedBalance;
+            this.plugin.settings.pendingSpendEvents = this.plugin.settings.pendingSpendEvents.filter(item => item.eventId !== stableEventId);
         } else {
             // Fail-open: optimistic local decrement, corrected on the next sync.
             settings.purchasedCredits = Math.max(0, settings.purchasedCredits - remainder);
