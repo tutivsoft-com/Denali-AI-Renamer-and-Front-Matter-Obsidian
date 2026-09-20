@@ -6,7 +6,7 @@ This snapshot records the repository state reviewed on 2026-09-20.
 
 - Branch: `main`
 - Reviewed commit: `a89a1e2`
-- Version: `4.20.5`, from `manifest.json`.
+- Version: `4.20.6`, from `manifest.json`.
 - The working tree was clean before this documentation update.
 
 ## Current implementation
