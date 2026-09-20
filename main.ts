@@ -672,15 +672,6 @@ export default class DenaliAIFileRenamer extends Plugin {
             await this.saveSettings();
         }
 
-        // --- NEW: Perform initial API validation ---
-        const apiValidationSuccess = await this.performInitialApiValidation();
-        if (!apiValidationSuccess) {
-            // If validation failed, the performInitialApiValidation function already showed a notice
-            // and instructed to contact support. The plugin will continue to load, but AI features
-            // will likely fail due to an invalid API key, which is handled by existing error logic.
-        }
-        // --- END NEW ---
-
         this.addSettingTab(new DenaliSettingTab(this.app, this));
 
         this.addCommand({
@@ -911,75 +902,6 @@ export default class DenaliAIFileRenamer extends Plugin {
     }
     // --- END CONSTANCE ---
 
-    // --- NEW: API Validation Logic ---
-
-    /**
-     * Tests if a given OpenRouter API key is functional by making a simple request.
-     * @param apiKey The decrypted API key to test.
-     * @param model The model to use for the test (e.g., 'google/gemini-2.5-flash-lite').
-     * @returns {Promise<boolean>} True if the API key works, false otherwise.
-     */
-    private async testOpenRouterConnection(apiKey: string, model: string): Promise<boolean> {
-        if (!apiKey) {
-            console.warn("Denali AI: No API key provided for connection test.");
-            return false;
-        }
-
-        const requestBody = {
-            model: model,
-            messages: [{ "role": "user", "content": "Hello" }],
-            temperature: 0.01,
-            max_tokens: 10, // Keep response small
-        };
-
-        try {
-            const response = await requestUrl({
-                url: 'https://openrouter.ai/api/v1/chat/completions',
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${apiKey}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(requestBody),
-                // No retries or long timeouts for this initial check
-            });
-
-            if (response.status === 200 && response.json && response.json.choices && response.json.choices.length > 0) {
-                // REMOVED: console.log(`Denali AI: API connection test successful with model ${model}.`);
-                return true;
-            } else {
-                console.warn(`Denali AI: API connection test failed with status ${response.status}. Response:`, response.json);
-                return false;
-            }
-        } catch (error: any) {
-            console.error(`Denali AI: API connection test encountered an error: ${error.message}`, error);
-            return false;
-        }
-    }
-
-    /**
-     * Performs the initial API validation using the primary key, and then backup keys if needed.
-     * Updates the plugin settings with a working key if found.
-     * @returns {Promise<boolean>} True if a working API key is found and set, false otherwise.
-     */
-    private async performInitialApiValidation(): Promise<boolean> {
-        new Notice("Denali AI: Checking API connection...", 3000);
-        // REMOVED: console.log("Denali AI: Starting initial API validation.");
-
-        const validationModel = 'google/gemini-2.5-flash-lite'; // As requested
-
-        // 1. Try the manual key from settings, else Pattern B's remote key manifest.
-        const apiKey = await this.resolveApiKey();
-        if (!apiKey) {
-            new Notice("Denali AI: No OpenRouter API key configured and the remote key manifest could not be reached.", 5000);
-            return false;
-        }
-        new Notice("Denali AI: Validating API key...", 2000);
-        const valid = await this.testOpenRouterConnection(apiKey, validationModel);
-        new Notice(valid ? "Denali AI: API key validated successfully." : "Denali AI: API key validation failed.", 4000);
-        return valid;
-    }
-    // --- END NEW ---
 }
 
 class FileRenamer {
