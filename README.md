@@ -51,14 +51,14 @@ generated from that source with esbuild. Release assets are `main.js`,
 GitHub release assets are attested by the repository workflow so their
 provenance can be verified independently.
 
-## Public Release Repository
+## Public Repository Workflow
 
-The TutivSoft repository is the final branded release repository. It is not the
-development checkout, but it intentionally includes the complete reviewable
-`main.ts` source snapshot because Obsidian Community checks the tagged public
-commit. The public root must contain `README.md`, `LICENSE`, `manifest.json`,
-`main.ts`, `main.js`, `styles.css`, and the attestation workflow.
+This is the private/source checkout. Copy the contents of the sibling
+[`../publish/`](../publish/) staging folder into the separate public GitHub
+repository root. Keep credentials, `node_modules`, and private project files
+out of the public repository.
 
-Keep credentials, `node_modules`, and private project files out of it. For each
-release, upload only `main.js`, `manifest.json`, and `styles.css` as GitHub
-release assets; the release tag must exactly match `manifest.json` `version`.
+The public root needs `README.md`, `LICENSE`, `manifest.json`, `main.ts`,
+`main.js`, `styles.css`, and `.github/workflows/release-attestations.yml`.
+For releases, upload only `main.js`, `manifest.json`, and `styles.css`; the
+release tag must exactly match `manifest.json` `version`.
