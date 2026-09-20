@@ -10,6 +10,8 @@
 
 import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, TFile, TFolder } from 'obsidian';
 import { requestUrl, RequestUrlParam, RequestUrlResponse } from 'obsidian'; // Import RequestUrlParam and RequestUrlResponse
+import { addBillingAccountSettings, claimAccountFreeUsage, spendAccountCredits } from './constance-account';
+import { PluginSupport } from './plugin-support';
 
 // --- Pattern B remote key manifest (TutivSoft.OpenAiKeyManifest port) ---
 // Fetches this app's own encrypted OpenRouter key from a GitHub-hosted manifest
@@ -402,6 +404,8 @@ interface DenaliSettings {
     purchasedCredits: number; // Local mirror of the real Constance CreditBalance
     constanceDeviceId: string; // Stable per-install id; doubles as external_customer_id/machine_id
     billingEmail: string; // Entered by the user, sent to Constance's checkout only
+    billingAccessToken: string;
+    billingAccountLinked: boolean;
     pendingSpendEvents: Array<{ eventId: string; amount: number }>;
     // --- END CONSTANCE ---
 }
@@ -525,7 +529,7 @@ const DEFAULT_SETTINGS: DenaliSettings = {
     // --- NEW: Credit System Defaults ---
     paymentType: 'one-time', // Default to one-time payment
     availableCredits: 0,
-    initialFreeCreditsGranted: false,
+    initialFreeCreditsGranted: true,
     displayPaymentType: true,
     displayAvailableCredits: true,
     // --- END NEW ---
@@ -535,6 +539,8 @@ const DEFAULT_SETTINGS: DenaliSettings = {
     pendingSpendEvents: [],
     constanceDeviceId: '', // Generated on first onload() via crypto.getRandomValues
     billingEmail: '',
+    billingAccessToken: '',
+    billingAccountLinked: false,
     // --- END CONSTANCE ---
 };
 
@@ -601,6 +607,7 @@ class ConfirmationModal extends Modal {
  */
 export default class DenaliAIFileRenamer extends Plugin {
     settings: DenaliSettings;
+    support!: PluginSupport;
     renameModal: DenaliAIOptionsModal | null = null;
 
     public static readonly DENALI_FOLDER = 'Denali AI';
@@ -638,6 +645,8 @@ export default class DenaliAIFileRenamer extends Plugin {
     }
 
     async onload() {
+        this.support = new PluginSupport(this, { name: 'Denali AI Renamer', summary: 'Generate safer filenames and searchable frontmatter from note content.', quickStart: ['Sign in to billing in Settings.', 'Open a Markdown note.', 'Run the Denali rename command and approve the preview.'], commands: ['Rename current note', 'Open Denali options', 'Copy debug log'], troubleshooting: ['Use Copy debug log before reporting a problem.', 'Check that the note is writable and has enough content to name.'] });
+        this.support.start();
         await this.loadSettings();
 
         // --- CONSTANCE: Ensure a stable device id exists, created once and reused forever ---
@@ -655,15 +664,13 @@ export default class DenaliAIFileRenamer extends Plugin {
         // Set the backup folder path to the new structure
         this.settings.backupFolder = DenaliAIFileRenamer.BACKUP_SUBFOLDER;
 
-        // --- NEW: Grant initial free credits if applicable ---
-        if (this.settings.paymentType === 'one-time' && !this.settings.initialFreeCreditsGranted) {
-            this.settings.availableCredits += 10;
+        // Migrate away from the reinstallable local starter grant. Constance now
+        // owns the account-scoped lifetime allowance and returns the remaining value.
+        if (!this.settings.initialFreeCreditsGranted) {
             this.settings.initialFreeCreditsGranted = true;
+            this.settings.availableCredits = 0;
             await this.saveSettings();
-            new Notice('You have been granted 10 free Denali AI credits!', 5000);
-            // REMOVED: console.log('Denali AI: Granted 10 initial free credits.');
         }
-        // --- END NEW ---
 
         // --- NEW: Perform initial API validation ---
         const apiValidationSuccess = await this.performInitialApiValidation();
@@ -779,6 +786,8 @@ export default class DenaliAIFileRenamer extends Plugin {
 
     async loadSettings() {
         this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+        this.settings.billingAccessToken = typeof this.settings.billingAccessToken === 'string' ? this.settings.billingAccessToken : '';
+        this.settings.billingAccountLinked = this.settings.billingAccountLinked === true && Boolean(this.settings.billingAccessToken);
         const planLimits = getPlanLimits(this.settings.userPlan);
 
         // Ensure maxInputLength does not exceed plan limits
@@ -831,19 +840,14 @@ export default class DenaliAIFileRenamer extends Plugin {
      */
     async syncPurchasedCreditsFromConstance(showNotice: boolean = false): Promise<void> {
         const deviceId = this.settings.constanceDeviceId;
-        if (!deviceId) {
+        if (!deviceId || !this.settings.billingAccessToken || !this.settings.billingAccountLinked) {
             return;
         }
         try {
             const response = await requestUrl({
-                url: `${CONSTANCE_BASE_URL}/api/v1/public/browser/entitlements`,
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    app_id: CONSTANCE_APP_ID,
-                    external_customer_id: deviceId,
-                    machine_id: deviceId,
-                }),
+                url: `${CONSTANCE_BASE_URL}/api/v1/billing/entitlements/me?${new URLSearchParams({ app_id: CONSTANCE_APP_ID, installation_id: deviceId }).toString()}`,
+                method: 'GET',
+                headers: { Authorization: `Bearer ${this.settings.billingAccessToken}` },
                 throw: false,
             });
 
@@ -895,35 +899,15 @@ export default class DenaliAIFileRenamer extends Plugin {
         if (!deviceId || amount <= 0) {
             return { outcome: 'error' };
         }
-        try {
-            const response = await requestUrl({
-                url: `${CONSTANCE_BASE_URL}/api/v1/public/browser/credits/spend`,
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    app_id: CONSTANCE_APP_ID,
-                    external_customer_id: deviceId,
-                    machine_id: deviceId,
-                    amount: amount,
-                    event_id: stableEventId,
-                }),
-                throw: false,
-            });
-
-            if (response.status === 200) {
-                const balance = response.json?.data?.credits?.balance;
-                return { outcome: 'success', newPurchasedBalance: typeof balance === 'number' ? balance : undefined };
-            }
-            if (response.status === 402) {
-                // Confirmed insufficient credits server-side — fail closed, never retry with a smaller amount here.
-                return { outcome: 'insufficient' };
-            }
-            console.warn(`Denali AI: Constance credit spend failed with status ${response.status}.`, response.json);
-            return { outcome: 'error' };
-        } catch (error) {
-            console.error('Denali AI: Constance credit spend request failed:', error);
-            return { outcome: 'error' };
+        const result = await spendAccountCredits(this.settings, CONSTANCE_APP_ID, deviceId, stableEventId, amount);
+        if (result.kind === 'ok') return { outcome: 'success', newPurchasedBalance: result.balance };
+        if (result.kind === 'insufficient') return { outcome: 'insufficient' };
+        if (result.kind === 'auth-required') {
+            this.settings.billingAccessToken = '';
+            this.settings.billingAccountLinked = false;
+            await this.saveSettings();
         }
+        return { outcome: 'error' };
     }
     // --- END CONSTANCE ---
 
@@ -1205,27 +1189,32 @@ class FileRenamer {
         }
 
         const settings = this.plugin.settings;
-        const free = settings.availableCredits;
-
-        // Free/local pool covers the whole cost — no network call needed, unchanged from before.
-        if (free >= cost) {
-            settings.availableCredits -= cost;
-            await this.plugin.saveSettings();
-            const remaining = settings.availableCredits + settings.purchasedCredits;
-            this.log(`Deducted ${cost} credits from free pool. Remaining: **${remaining}**`);
-            new Notice(`Used ${cost} credits. Remaining: ${remaining}`, 2000);
-            return true;
-        }
-
-        const remainder = cost - free;
-        const totalAvailable = free + settings.purchasedCredits;
-
-        // Fast local pre-check: avoids a doomed network call when the local mirror already shows insufficient.
-        if (totalAvailable < cost) {
-            this.log(`Not enough credits to perform this operation. Required: ${cost}, Available: ${totalAvailable}`, true);
-            new Notice(`Not enough credits! Required: ${cost}, Available: ${totalAvailable}. Buy more credits in Settings.`, 7000);
+        if (!settings.billingAccessToken || !settings.billingAccountLinked) {
+            new Notice('Denali AI: sign in or create a billing account in Settings before using AI features.', 6000);
             return false;
         }
+
+        const freeEventId = `denali-free-${settings.constanceDeviceId}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+        const freeResult = await claimAccountFreeUsage(settings, CONSTANCE_APP_ID, settings.constanceDeviceId, freeEventId, cost);
+        if (freeResult.kind === 'ok') {
+            settings.availableCredits = freeResult.remaining;
+            await this.plugin.saveSettings();
+            new Notice(`Used ${cost} credits. Free credits remaining: ${freeResult.remaining}`, 2500);
+            return true;
+        }
+        if (freeResult.kind === 'auth-required') {
+            settings.billingAccessToken = '';
+            settings.billingAccountLinked = false;
+            await this.plugin.saveSettings();
+            new Notice('Denali AI: your billing session expired. Sign in again in Settings.', 6000);
+            return false;
+        }
+        if (freeResult.kind === 'error') {
+            new Notice('Denali AI: the account allowance could not be verified. Try again when Constance is reachable.', 6000);
+            return false;
+        }
+
+        const remainder = cost;
 
         await this.plugin.retryPendingSpendEvents();
         if (this.plugin.settings.pendingSpendEvents.length > 0) {
@@ -1240,24 +1229,21 @@ class FileRenamer {
         if (spendResult.outcome === 'insufficient') {
             this.plugin.settings.pendingSpendEvents = this.plugin.settings.pendingSpendEvents.filter(item => item.eventId !== stableEventId);
             await this.plugin.saveSettings();
-            this.log(`Not enough purchased credits to cover the remaining ${remainder}. Required: ${cost}, Available: ${free + settings.purchasedCredits}`, true);
-            new Notice(`Not enough credits! Required: ${cost}, Available: ${free + settings.purchasedCredits}. Buy more credits in Settings.`, 7000);
+            this.log(`Not enough purchased credits to cover ${remainder}.`, true);
+            new Notice(`Not enough credits! Required: ${cost}. Buy more credits in Settings.`, 7000);
             return false;
         }
 
-        // Success or network-error (fail-open): spend the free pool locally either way.
-        settings.availableCredits = 0;
         if (spendResult.outcome === 'success' && typeof spendResult.newPurchasedBalance === 'number') {
             settings.purchasedCredits = spendResult.newPurchasedBalance;
             this.plugin.settings.pendingSpendEvents = this.plugin.settings.pendingSpendEvents.filter(item => item.eventId !== stableEventId);
         } else {
-            // Fail-open: optimistic local decrement, corrected on the next sync.
-            settings.purchasedCredits = Math.max(0, settings.purchasedCredits - remainder);
-            console.warn(`Denali AI: Constance credit spend request failed for a non-insufficient-credit reason; proceeding optimistically and correcting on next sync.`);
+            new Notice('Denali AI: the credit spend could not be verified. Try again when Constance is reachable.', 6000);
+            return false;
         }
         await this.plugin.saveSettings();
         const remaining = settings.availableCredits + settings.purchasedCredits;
-        this.log(`Deducted ${cost} credits (${free} free + ${remainder} purchased). Remaining: **${remaining}**`);
+        this.log(`Deducted ${cost} purchased credits. Remaining: **${remaining}**`);
         new Notice(`Used ${cost} credits. Remaining: ${remaining}`, 2000);
         return true;
     }
@@ -2418,16 +2404,15 @@ class DenaliSettingTab extends PluginSettingTab {
                 .setName('Credit Balance')
                 .setDesc(`Total available: ${totalCredits} credits (${this.plugin.settings.availableCredits} free + ${this.plugin.settings.purchasedCredits} purchased). Each file rename costs 1 credit, and each frontmatter change costs 1 credit.`);
 
-            new Setting(containerEl)
-                .setName('Billing Email')
-                .setDesc('Used only for your Constance/TutivSoft checkout receipt. Not required to look up your balance — purchases are tied to this device automatically.')
-                .addText(text => text
-                    .setPlaceholder('you@example.com')
-                    .setValue(this.plugin.settings.billingEmail)
-                    .onChange(async (value) => {
-                        this.plugin.settings.billingEmail = value.trim();
-                        await this.plugin.saveSettings();
-                    }));
+            addBillingAccountSettings(containerEl, {
+                state: this.plugin.settings,
+                appId: CONSTANCE_APP_ID,
+                installationId: this.plugin.settings.constanceDeviceId,
+                appVersion: this.plugin.manifest.version,
+                persist: () => this.plugin.saveSettings(),
+                syncBalance: () => this.plugin.syncPurchasedCreditsFromConstance(),
+                refresh: () => this.display(),
+            });
 
             const buyCreditsSetting = new Setting(containerEl)
                 .setName('Buy More Credits')
