@@ -1,7 +1,7 @@
 {
 	"id": "denali-ai-file-renamer-front-matter",
 	"name": "Denali AI Renamer and Front Matter",
-	"version": "4.20.11",
+	"version": "4.20.12",
 	"minAppVersion": "1.5.0",
 	"description": "Rename Markdown notes and generate searchable frontmatter with OpenRouter AI.",
 	"author": "TutivSoft",

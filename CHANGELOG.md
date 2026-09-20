@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.20.12 - 2026-09-21
+
+- Incremented release metadata without rebuilding the plugin.
+
 ## 4.20.6 - 2026-09-20
 
 - Prepared the next patch version across source, nested package, publish, and
