@@ -872,8 +872,7 @@ export default class DenaliAIFileRenamer extends Plugin {
      * @param amount Credits to spend. Must be > 0 (callers should skip calling this for 0).
      * @returns 'success' with the server's authoritative new balance, 'insufficient'
      *          on a confirmed 402 (caller must block and never retry), or 'error' on
-     *          any other failure (network/5xx) — caller should fail OPEN and let the
-     *          next sync correct the local mirror, per this app's agreed policy.
+     *          any other failure. Callers block AI work until the spend is authoritative.
      */
     async retryPendingSpendEvents(): Promise<void> {
         for (const pending of [...this.settings.pendingSpendEvents]) {
