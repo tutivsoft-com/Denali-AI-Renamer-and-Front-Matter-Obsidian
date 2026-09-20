@@ -1174,12 +1174,9 @@ class FileRenamer {
      * remainder from purchasedCredits via Constance's real credit-spend
      * endpoint (the local mirror of the server's authoritative CreditBalance).
      *
-     * Failure policy: a confirmed insufficient-credit response (server 402)
-     * blocks the operation immediately, same UX as the old "Not enough
-     * credits!" message. A non-insufficient failure (network error, 5xx)
-     * fails OPEN — the operation proceeds and the local purchasedCredits
-     * mirror is corrected on the next sync, so a result already about to be
-     * shown to the user is never clawed back for a mere connectivity blip.
+     * Failure policy: confirmed insufficient-credit, authentication, and
+     * transport failures all block the operation. A charge is never assumed
+     * successful until Constance returns an authoritative result.
      * @param cost The number of credits to deduct.
      * @returns True if credits were successfully deducted (or the plan is subscription-based), false if blocked by insufficient credits.
      */
