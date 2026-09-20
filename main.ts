@@ -668,9 +668,10 @@ export default class DenaliAIFileRenamer extends Plugin {
         // owns the account-scoped lifetime allowance and returns the remaining value.
         if (!this.settings.initialFreeCreditsGranted) {
             this.settings.initialFreeCreditsGranted = true;
-            this.settings.availableCredits = 0;
-            await this.saveSettings();
         }
+        // Free usage is account-scoped; discard any legacy local starter pool.
+        this.settings.availableCredits = 0;
+        await this.saveSettings();
 
         this.addSettingTab(new DenaliSettingTab(this.app, this));
 
