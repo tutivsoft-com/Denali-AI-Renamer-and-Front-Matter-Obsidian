@@ -10,7 +10,7 @@
 
 import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, TFile, TFolder } from 'obsidian';
 import { requestUrl, RequestUrlParam, RequestUrlResponse } from 'obsidian'; // Import RequestUrlParam and RequestUrlResponse
-import { addBillingAccountSettings, claimAccountFreeUsage, spendAccountCredits } from './constance-account';
+import { addBillingAccountSettings, claimAccountFreeUsage, createAuthenticatedCheckout, pollAuthenticatedCheckout, spendAccountCredits } from './constance-account';
 import { PluginSupport } from './plugin-support';
 
 // --- Pattern B remote key manifest (TutivSoft.OpenAiKeyManifest port) ---
@@ -165,13 +165,8 @@ async function fetchRemoteApiKey(): Promise<string> {
 // --- END Pattern B remote key manifest ---
 
 // --- CONSTANCE (TutivSoft central billing) ---
-// Unsigned public browser-relay integration. This plugin's main.js is a
-// locally-readable bundle (same trust model as a browser extension), so it
-// cannot hold a real HMAC shared secret. Constance's public browser-relay
-// endpoints exist specifically for this trust model. See
-// CONSTANCE_BILLING_MIGRATION_ANALYSIS.md and BROWSER_CREDIT_SPEND_PLAN.md
-// in the Constance repo for the full design (built for the sibling app,
-// Antero AI Auto Spell Correct, and reused here unmodified).
+// Account-linked billing owns entitlements, free usage, paid spend, and
+// checkout. No shared HMAC secret is bundled in this locally readable plugin.
 const CONSTANCE_BASE_URL = "https://app.tutivsoft.com";
 const CONSTANCE_APP_ID = "denali-ai-file-renamer-front-matter";
 
@@ -183,12 +178,19 @@ interface DenaliCreditTier {
     amountUsd: number;
     credits: number;
     priceId: string;
+    planCode: string;
 }
 const DENALI_CREDIT_TIERS: DenaliCreditTier[] = [
-    { label: "$1 → 50 credits", amountUsd: 1, credits: 50, priceId: "pri_01m0b7gtqfncsz7sc4fc3aejpc" },
-    { label: "$5 → 400 credits", amountUsd: 5, credits: 400, priceId: "pri_01m0b7gvay5f3xmb80jd99ehzk" },
-    { label: "$15 → 1600 credits", amountUsd: 15, credits: 1600, priceId: "pri_01m0b7gvymzrp8b0jy32xsj7q2" },
+    { label: "$1 → 50 credits", amountUsd: 1, credits: 50, priceId: "pri_01m0b7gtqfncsz7sc4fc3aejpc", planCode: "standard" },
+    { label: "$5 → 400 credits", amountUsd: 5, credits: 400, priceId: "pri_01m0b7gvay5f3xmb80jd99ehzk", planCode: "pro" },
+    { label: "$15 → 1600 credits", amountUsd: 15, credits: 1600, priceId: "pri_01m0b7gvymzrp8b0jy32xsj7q2", planCode: "ultimate" },
 ];
+
+function generateConstanceEventId(): string {
+    const bytes = new Uint8Array(12);
+    crypto.getRandomValues(bytes);
+    return `evt_${Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join("")}`;
+}
 
 /**
  * Generates a stable per-install device id using a real CSPRNG
@@ -202,10 +204,8 @@ function generateConstanceDeviceId(): string {
 }
 
 /**
- * Builds the unauthenticated Constance checkout redirect URL for a given
- * one-time credit tier. Opened with window.open(url, "_blank") rather than
- * Electron's shell.openExternal, since this plugin's manifest declares
- * isDesktopOnly: false and must also work in mobile webviews.
+ * Builds the Contract v9 fallback URL only when authenticated checkout returns
+ * a transaction without a hosted checkout URL.
  */
 function buildDenaliBuyUrl(priceId: string, email: string, deviceId: string): string {
     const params = new URLSearchParams({
@@ -403,10 +403,12 @@ interface DenaliSettings {
     // --- CONSTANCE: Central billing (replaces the old local license-key system) ---
     purchasedCredits: number; // Local mirror of the real Constance CreditBalance
     constanceDeviceId: string; // Stable per-install id; doubles as external_customer_id/machine_id
-    billingEmail: string; // Entered by the user, sent to Constance's checkout only
+    billingEmail: string; // Used by the Contract v9 /buy fallback for checkout receipts
     billingAccessToken: string;
+    billingRefreshToken: string;
     billingAccountLinked: boolean;
     pendingSpendEvents: Array<{ eventId: string; amount: number }>;
+    pendingCheckout: { idempotencyKey: string; planCode: string; priceId: string } | null;
     // --- END CONSTANCE ---
 }
 
@@ -537,9 +539,11 @@ const DEFAULT_SETTINGS: DenaliSettings = {
     // --- CONSTANCE: Central billing defaults ---
     purchasedCredits: 0,
     pendingSpendEvents: [],
+    pendingCheckout: null,
     constanceDeviceId: '', // Generated on first onload() via crypto.getRandomValues
     billingEmail: '',
     billingAccessToken: '',
+    billingRefreshToken: '',
     billingAccountLinked: false,
     // --- END CONSTANCE ---
 };
@@ -657,6 +661,13 @@ export default class DenaliAIFileRenamer extends Plugin {
         // Sync the local purchased-credit mirror from Constance in the background.
         // Fire-and-forget: does not block plugin startup, and errors are handled internally.
         this.settings.pendingSpendEvents = Array.isArray(this.settings.pendingSpendEvents) ? this.settings.pendingSpendEvents.filter(item => item && typeof item.eventId === 'string' && Number.isInteger(item.amount) && item.amount > 0) : [];
+        const pendingCheckout = this.settings.pendingCheckout;
+        this.settings.pendingCheckout = pendingCheckout && typeof pendingCheckout.idempotencyKey === 'string' && typeof pendingCheckout.planCode === 'string' && typeof pendingCheckout.priceId === 'string'
+            ? pendingCheckout
+            : null;
+        this.settings.billingAccessToken = typeof this.settings.billingAccessToken === 'string' ? this.settings.billingAccessToken : '';
+        this.settings.billingRefreshToken = typeof this.settings.billingRefreshToken === 'string' ? this.settings.billingRefreshToken : '';
+        this.settings.billingAccountLinked = this.settings.billingAccountLinked === true && Boolean(this.settings.billingAccessToken);
         await this.saveSettings();
         void this.syncPurchasedCreditsFromConstance().then(() => this.retryPendingSpendEvents());
         // --- END CONSTANCE ---
@@ -822,14 +833,90 @@ export default class DenaliAIFileRenamer extends Plugin {
         }
     }
 
+    async openDenaliCheckout(tier: DenaliCreditTier): Promise<void> {
+        if (!this.settings.billingAccessToken || !this.settings.billingAccountLinked) {
+            new Notice('Denali AI: sign in or create a billing account before purchasing credits.', 5000);
+            return;
+        }
+        if (!tier.priceId || tier.priceId === 'PENDING_PROVISIONING') {
+            new Notice('Denali billing is not available yet because Paddle prices are still being provisioned.', 5000);
+            return;
+        }
+        const pending = this.settings.pendingCheckout;
+        if (pending && (pending.planCode !== tier.planCode || pending.priceId !== tier.priceId)) {
+            new Notice('Denali AI: finish or retry the pending checkout before starting another purchase.', 5000);
+            return;
+        }
+        const checkout = pending || { idempotencyKey: generateConstanceEventId(), planCode: tier.planCode, priceId: tier.priceId };
+        if (!pending) {
+            this.settings.pendingCheckout = checkout;
+            await this.saveSettings();
+        }
+        const result = await createAuthenticatedCheckout(this.settings, CONSTANCE_APP_ID, this.settings.constanceDeviceId, checkout.planCode, checkout.idempotencyKey, () => this.saveSettings());
+        if (result.kind === 'auth-required') {
+            this.settings.billingAccessToken = '';
+            this.settings.billingRefreshToken = '';
+            this.settings.billingAccountLinked = false;
+            await this.saveSettings();
+            new Notice('Denali AI: your billing session expired. Sign in again before purchasing.', 6000);
+            return;
+        }
+        if (result.kind !== 'ok') {
+            new Notice(result.kind === 'unavailable' ? `Denali checkout unavailable (HTTP ${result.status}). Retry when Constance is reachable.` : 'Denali checkout could not be started. Retry when Constance is reachable.', 6000);
+            return;
+        }
+        const email = this.settings.billingEmail.trim().toLowerCase();
+        if (!result.checkoutUrl && (!email || !email.includes('@'))) {
+            new Notice('Enter a valid billing email before using the checkout fallback.', 5000);
+            return;
+        }
+        this.settings.pendingCheckout = null;
+        await this.saveSettings();
+        const checkoutUrl = result.checkoutUrl || buildDenaliBuyUrl(tier.priceId, email, this.settings.constanceDeviceId);
+        // /buy is only the Contract v9 fallback for a transaction with no
+        // hosted checkout URL; authenticated checkout remains the normal path.
+        window.open(checkoutUrl, '_blank');
+        new Notice(`Opening checkout for ${tier.label}...`, 3000);
+        this.pollAfterCheckout(result.checkoutId || undefined);
+    }
+
+    private pollAfterCheckout(checkoutId?: string): void {
+        let attempts = 0;
+        let running = false;
+        let intervalId: number | null = null;
+        const poll = async () => {
+            if (running) return;
+            running = true;
+            attempts += 1;
+            try {
+                if (checkoutId) {
+                    const status = await pollAuthenticatedCheckout(this.settings, checkoutId, () => this.saveSettings());
+                    if (status.kind === 'auth-required') {
+                        this.settings.billingAccessToken = '';
+                        this.settings.billingRefreshToken = '';
+                        this.settings.billingAccountLinked = false;
+                        await this.saveSettings();
+                        if (intervalId !== null) window.clearInterval(intervalId);
+                        return;
+                    }
+                    if (status.kind === 'settled') {
+                        await this.syncPurchasedCreditsFromConstance();
+                        if (intervalId !== null) window.clearInterval(intervalId);
+                        return;
+                    }
+                }
+                await this.syncPurchasedCreditsFromConstance();
+            } finally {
+                running = false;
+            }
+            if (attempts >= 6 && intervalId !== null) window.clearInterval(intervalId);
+        };
+        void poll();
+        intervalId = window.setInterval(() => { void poll(); }, 15000);
+    }
+
     // --- CONSTANCE: Central billing client (replaces the old local license-key system) ---
-    /**
-     * Reads the current entitlement/credit balance from Constance via the
-     * unsigned same-install lookup (external_customer_id == machine_id, no
-     * license_key, no subscription_id) and updates the local purchasedCredits
-     * mirror. Called on plugin onload() and whenever the settings tab opens.
-     * @param showNotice Whether to surface a user-visible Notice with the result (used by the manual "Refresh balance" button).
-     */
+    /** Reads the account-linked entitlement snapshot and updates the local mirror. */
     async syncPurchasedCreditsFromConstance(showNotice: boolean = false): Promise<void> {
         const deviceId = this.settings.constanceDeviceId;
         if (!deviceId || !this.settings.billingAccessToken || !this.settings.billingAccountLinked) {
@@ -867,9 +954,7 @@ export default class DenaliAIFileRenamer extends Plugin {
     }
 
     /**
-     * Spends `amount` credits against the real Constance CreditBalance via the
-     * unsigned public browser credit-spend endpoint (gated server-side by this
-     * app's App_Allow_Unsigned_Browser_Credit_Spend catalog flag).
+     * Spends `amount` credits against the account-linked Constance CreditBalance.
      * @param amount Credits to spend. Must be > 0 (callers should skip calling this for 0).
      * @returns 'success' with the server's authoritative new balance, 'insufficient'
      *          on a confirmed 402 (caller must block and never retry), or 'error' on
@@ -885,16 +970,17 @@ export default class DenaliAIFileRenamer extends Plugin {
         }
     }
 
-    async spendConstanceCredits(amount: number, stableEventId: string = `denali-spend-${this.settings.constanceDeviceId}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`): Promise<{ outcome: 'success' | 'insufficient' | 'error'; newPurchasedBalance?: number }> {
+    async spendConstanceCredits(amount: number, stableEventId: string = generateConstanceEventId()): Promise<{ outcome: 'success' | 'insufficient' | 'error'; newPurchasedBalance?: number }> {
         const deviceId = this.settings.constanceDeviceId;
         if (!deviceId || amount <= 0) {
             return { outcome: 'error' };
         }
-        const result = await spendAccountCredits(this.settings, CONSTANCE_APP_ID, deviceId, stableEventId, amount);
+        const result = await spendAccountCredits(this.settings, CONSTANCE_APP_ID, deviceId, stableEventId, amount, () => this.saveSettings());
         if (result.kind === 'ok') return { outcome: 'success', newPurchasedBalance: result.balance };
         if (result.kind === 'insufficient') return { outcome: 'insufficient' };
         if (result.kind === 'auth-required') {
             this.settings.billingAccessToken = '';
+            this.settings.billingRefreshToken = '';
             this.settings.billingAccountLinked = false;
             await this.saveSettings();
         }
@@ -1113,8 +1199,8 @@ class FileRenamer {
             return false;
         }
 
-        const freeEventId = `denali-free-${settings.constanceDeviceId}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-        const freeResult = await claimAccountFreeUsage(settings, CONSTANCE_APP_ID, settings.constanceDeviceId, freeEventId, cost);
+        const freeEventId = `free_${generateConstanceEventId()}`;
+        const freeResult = await claimAccountFreeUsage(settings, CONSTANCE_APP_ID, settings.constanceDeviceId, freeEventId, cost, () => this.plugin.saveSettings());
         if (freeResult.kind === 'ok') {
             settings.availableCredits = freeResult.remaining;
             await this.plugin.saveSettings();
@@ -1123,6 +1209,7 @@ class FileRenamer {
         }
         if (freeResult.kind === 'auth-required') {
             settings.billingAccessToken = '';
+            settings.billingRefreshToken = '';
             settings.billingAccountLinked = false;
             await this.plugin.saveSettings();
             new Notice('Denali AI: your billing session expired. Sign in again in Settings.', 6000);
@@ -1140,7 +1227,7 @@ class FileRenamer {
             new Notice('Denali AI: a previous credit spend is still being reconciled. Try again when the connection is restored.', 5000);
             return false;
         }
-        const stableEventId = `denali-spend-${this.plugin.settings.constanceDeviceId}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+        const stableEventId = generateConstanceEventId();
         this.plugin.settings.pendingSpendEvents.push({ eventId: stableEventId, amount: remainder });
         await this.plugin.saveSettings();
         const spendResult = await this.plugin.spendConstanceCredits(remainder, stableEventId);
@@ -2335,27 +2422,11 @@ class DenaliSettingTab extends PluginSettingTab {
 
             const buyCreditsSetting = new Setting(containerEl)
                 .setName('Buy More Credits')
-                .setDesc('Opens Constance secure checkout (app.tutivsoft.com) in your browser. Purchased credits appear automatically within a minute of payment, or use "Refresh Balance" below.');
+                .setDesc('Opens authenticated Constance checkout (app.tutivsoft.com) in your browser. Purchased credits appear automatically after payment, or use "Refresh Balance" below.');
             for (const tier of DENALI_CREDIT_TIERS) {
                 buyCreditsSetting.addButton(button => button
                     .setButtonText(tier.label)
-                    .onClick(() => {
-                        const email = this.plugin.settings.billingEmail.trim();
-                        if (!email || !email.includes('@')) {
-                            new Notice('Please enter a valid billing email above before purchasing.', 5000);
-                            return;
-                        }
-                        if (!tier.priceId || tier.priceId === 'PENDING_PROVISIONING') {
-                            new Notice('Denali billing is not available yet because Paddle prices are still being provisioned.', 5000);
-                            return;
-                        }
-                        const url = buildDenaliBuyUrl(tier.priceId, email, this.plugin.settings.constanceDeviceId);
-                        window.open(url, '_blank');
-                        new Notice(`Opening checkout for ${tier.label}...`, 3000);
-                        // Re-sync shortly after checkout opens, so a fast payment shows up without a manual refresh.
-                        setTimeout(() => { void this.plugin.syncPurchasedCreditsFromConstance(); }, 15000);
-                        setTimeout(() => { void this.plugin.syncPurchasedCreditsFromConstance(); }, 45000);
-                    }));
+                    .onClick(() => { void this.plugin.openDenaliCheckout(tier); }));
             }
 
             new Setting(containerEl)
