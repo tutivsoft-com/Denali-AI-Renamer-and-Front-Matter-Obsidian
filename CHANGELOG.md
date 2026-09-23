@@ -1,10 +1,28 @@
 # Changelog
 
+## 5.0.2 - 2026-09-23
+
+- Migrate legacy subscription settings to the current credit purchase model so every rename checks entitlement.
+- Keep filename collision suffixes sequential and render note names safely in the status log.
+
+## 5.0.1 - 2026-09-23
+
+- Reject unsafe AI subfolder paths, create valid suggested folders when needed, and avoid charging for no-op renames.
+
+## 5.0.0 - 2026-09-23
+
+- Removed all frontmatter generation and mutation code, controls, and AI output fields.
+- Denali now sends only note body text for filename suggestions and changes the file path without modifying note contents.
+- Renamed the Obsidian display name to Denali AI Renamer while retaining the plugin ID for installed-user upgrades.
+- Rebuilt and synchronized the source, publish, manifest, and release documentation.
+
 ## 4.20.13 - 2026-09-22
 
-- Updated Constance checkout to the authenticated account route with stable
-  idempotency, refresh-token support, and checkout-status polling. Retained
-  `/buy` only as the Contract v9 no-checkout-URL fallback.
+- Fixed Constance account registration for deployments that require email
+  verification and prevented linked-account email drift during checkout.
+- Switched spend/free-usage event ids to cryptographically random ids so retry
+  idempotency remains stable without the old `Math.random()` suffix.
+- Rebuilt and synchronized the source, publish, manifest, and release metadata.
 
 ## 4.20.12 - 2026-09-21
 
