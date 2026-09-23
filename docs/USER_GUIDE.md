@@ -13,7 +13,7 @@ Denali suggests filenames from Markdown note bodies and renames notes after revi
 
 ## Rename one note
 
-Open a Markdown note and choose **Denali AI Renamer: Rename current note** from its file menu or the command palette. Denali reads the note body, asks OpenRouter for a filename, and shows the suggestion in interactive mode so you can edit it before renaming.
+Open a Markdown note and choose **Denali AI Renamer: Rename current note** from the command palette (or use **Denali AI: Rename note** in the file menu). Denali reads the note body, asks OpenRouter for a filename, and shows the suggestion in interactive mode so you can edit it before renaming.
 
 Example body:
 

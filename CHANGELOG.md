@@ -1,5 +1,10 @@
 # Changelog
 
+## 5.0.4 - 2026-09-24
+
+- Added accurate feature, requirements, architecture, and marketing documentation for the current no-frontmatter product scope.
+- Refreshed the public source snapshot and release metadata; no runtime behavior changed.
+
 ## 5.0.3 - 2026-09-23
 
 - Simplified Obsidian command palette labels by removing repeated plugin-name prefixes.

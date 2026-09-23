@@ -1,3 +1,7 @@
+# Release 5.0.4
+
+- Added current product documentation covering implemented features, requirements, architecture, and verified product claims. No runtime behavior changed.
+
 # Release 5.0.3
 
 - Simplified Obsidian command palette labels by removing repeated plugin-name prefixes.

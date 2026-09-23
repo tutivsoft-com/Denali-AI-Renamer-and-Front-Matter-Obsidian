@@ -1,33 +1,29 @@
-# Denali-AI-Renamer-and-Front-Matter-Obsidian-public — AI Model Evidence
+# Denali AI Renamer — AI Model Evidence
 
-Generated or reconciled: 2026-09-21
+Reconciled: `2026-09-23`
 
-This file records evidence about AI assistance and model attribution. It does
-not claim that a model authored source code merely because source style
-resembles a model's output.
+## Model authorship
 
-## Detected model
+**Repository authoring model:** Unknown.
 
-**Model:** Unknown
+Obsidian API usage, prompt text, source style, and the existence of AI features
+do not establish which model authored a code change. Older versions of this
+file inferred ChatGPT authorship from generic plugin patterns; that inference
+was unsupported and is superseded by this record.
 
-**Confidence:** Low
+## Runtime model
 
-No reliable model identity was found in the current repository evidence. Do
-not infer a model from project names, source style, or the existence of an AI
-feature.
+Denali sends note-body text to OpenRouter to suggest filenames. Users can
+select a model in settings; the source default is
+`~deepseek/deepseek-v4-flash-latest`. Runtime model selection is product
+configuration and is not repository authorship evidence. YAML frontmatter is
+excluded from the request, and the plugin no longer generates or edits it.
 
-## Git and authorship evidence
+## Attribution evidence
 
-- Commit count: `26`. - Latest commit: `e82da8d368c51b4216add224510745a383454692|2026-09-21|humble-new-student-89|docs: add store readiness audit`. - No AI-labelled Git author identities were found.
+Git author identities identify the committer, not the model that generated
+individual lines. No reliable model-authorship evidence was found in the
+repository. Historical model-change notices remain records of the dates and
+claims written at those times; they are not proof of code authorship.
 
-Git author identities indicate commit attribution, not proof that a model
-generated every changed line.
-
-## Historical model-change records
-
-- No `CHANGE_IN_MODEL_20260817102257.md` record was found in the current tree or Git history.
-
-## Methodology
-
-This record was generated from the current repository files and Git history.
 Secret values must never be copied into this file.

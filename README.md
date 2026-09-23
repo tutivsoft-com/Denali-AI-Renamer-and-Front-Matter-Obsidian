@@ -2,7 +2,7 @@
 
 Generate and review AI-assisted filenames for Markdown notes. Denali does not generate, add, or update frontmatter.
 
-Version: `5.0.3` · [Complete user guide](./docs/USER_GUIDE.md)
+Version: `5.0.4` · [Complete user guide](./docs/USER_GUIDE.md)
 
 ## Current AI Provider
 
@@ -20,11 +20,13 @@ authenticated `/api/v1/billing/...` endpoints. This backend-less plugin does
 not hold a shared HMAC secret or receive server callbacks; the bearer-linked
 installation is the current supported client flow.
 
-## Project documentation (plugin 5.0.2)
+## Project documentation (plugin 5.0.4)
 
+- [FEATURES.md](./FEATURES.md) — implemented product features and the content boundary.
+- [REQUIREMENTS.md](./REQUIREMENTS.md) — current product requirements and release checks.
 - [architecture.md](./architecture.md) — Architectural overview and data flow.
+- [MARKETING.md](./MARKETING.md) — verified product copy and claim boundaries.
 - [ai_model.md](./ai_model.md) — AI model evidence and detection metadata.
-- [rahul_manifest.yaml](./rahul_manifest.yaml) — Project manifest and system specifications.
 - [HISTORY.md](./HISTORY.md) — Version history timeline.
 - [CONTRIBUTORS.md](./CONTRIBUTORS.md) — Contributor attribution.
 
@@ -32,7 +34,7 @@ installation is the current supported client flow.
 
 This checkout is the private/source repository. The canonical public GitHub
 repository is [`tutivsoft-com/Denali-AI-Renamer-and-Front-Matter-Obsidian`](https://github.com/tutivsoft-com/Denali-AI-Renamer-and-Front-Matter-Obsidian),
-and its release contents are staged in [`publish/`](./publish/). Copy the contents of
+and its release contents are staged in the source repository’s `publish/` directory. Copy the contents of
 `publish/` into the public repository root. Never copy credentials, logs,
 `node_modules`, or private project metadata.
 
