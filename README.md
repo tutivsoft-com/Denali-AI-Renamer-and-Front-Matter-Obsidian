@@ -2,7 +2,7 @@
 
 Generate and review AI-assisted filenames for Markdown notes. Denali does not generate, add, or update frontmatter.
 
-Version: `5.0.2` · [Complete user guide](./docs/USER_GUIDE.md)
+Version: `5.0.3` · [Complete user guide](./docs/USER_GUIDE.md)
 
 ## Current AI Provider
 

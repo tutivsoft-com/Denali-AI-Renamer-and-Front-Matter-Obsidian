@@ -1,3 +1,7 @@
+# Release 5.0.3
+
+- Simplified Obsidian command palette labels by removing repeated plugin-name prefixes.
+
 # Denali AI Renamer — Release Notes
 
 ## 5.0.2 - 2026-09-23

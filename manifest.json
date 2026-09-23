@@ -1,10 +1,10 @@
 {
-	"id": "denali-ai-file-renamer-front-matter",
+  "id": "denali-ai-file-renamer-front-matter",
 	"name": "Denali AI Renamer",
-	"version": "5.0.2",
-	"minAppVersion": "1.5.0",
+	"version": "5.0.3",
+  "minAppVersion": "1.5.0",
 	"description": "Generate and review AI-assisted filenames for Markdown notes.",
-	"author": "TutivSoft",
-	"authorUrl": "https://github.com/tutivsoft-com",
-	"isDesktopOnly": false
+  "author": "TutivSoft",
+  "authorUrl": "https://github.com/tutivsoft-com",
+  "isDesktopOnly": false
 }

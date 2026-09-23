@@ -599,7 +599,7 @@ export default class DenaliAIFileRenamer extends Plugin {
 
         this.addCommand({
             id: 'open-denali-ai-options',
-            name: 'Denali AI: Open options for current note',
+            name: 'Open renaming options for current note',
             callback: () => {
                 const activeFile = this.app.workspace.getActiveFile();
                 if (!activeFile || activeFile.extension !== 'md') {
@@ -614,7 +614,7 @@ export default class DenaliAIFileRenamer extends Plugin {
 
         this.addCommand({
             id: 'rename-current-file-denali-ai',
-            name: 'Denali AI: Rename current note',
+            name: 'Rename current note',
             checkCallback: (checking: boolean) => {
                 const activeFile = this.app.workspace.getActiveFile();
                 if (activeFile && activeFile.extension === 'md') {
