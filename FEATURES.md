@@ -5,7 +5,7 @@ Denali is an Obsidian plugin for generating and applying AI-assisted filenames t
 ## Implemented
 
 - Suggest a filename from the Markdown note body. The opening YAML frontmatter block is excluded from the AI request.
-- Review and edit a suggestion before a single-note rename, or use the configured automatic mode for folder batches.
+- Rename automatically by default, with an optional interactive mode for editing suggestions.
 - Rename the current note or batch-process Markdown notes in a selected folder.
 - Optionally accept a safe relative subfolder suggestion. Absolute paths, traversal segments, and invalid path characters are rejected.
 - Avoid changing the path when the suggestion is already the current path; check destination collisions and add a suffix when needed.

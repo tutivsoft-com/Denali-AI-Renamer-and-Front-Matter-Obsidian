@@ -4,11 +4,11 @@
 
 Denali suggests filenames from Markdown note bodies and renames notes after review. It does not generate or edit frontmatter, properties, aliases, tags, or note-body text. Existing YAML frontmatter is excluded from the AI input.
 
-## First setup
+## Get started
 
 1. Install and enable **Denali AI Renamer**.
 2. Open **Settings → Community plugins → Denali AI Renamer**.
-3. Add an OpenRouter API key in **Advanced settings** if your installation does not have a managed connection.
+3. Use Denali's built-in capped OpenRouter key and default model; a personal key remains an optional override in Advanced settings.
 4. Choose the model and naming style, then test with a disposable note.
 
 ## Rename one note

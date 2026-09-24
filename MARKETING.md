@@ -10,7 +10,7 @@ Create clearer Markdown filenames from note content with reviewable AI suggestio
 
 ## Product copy
 
-Denali AI Renamer suggests descriptive filenames for your Obsidian notes. Review or edit a suggestion before applying it, or use the configured automatic mode for folder batches. Denali reads the note body for the request, leaves YAML frontmatter out of the prompt, and changes the file path without rewriting the note.
+Denali AI Renamer suggests descriptive filenames for your Obsidian notes. Denali applies filenames automatically by default; interactive review remains an optional mode in settings. Denali reads the note body for the request, leaves YAML frontmatter out of the prompt, and changes the file path without rewriting the note.
 
 ## Verified product points
 
