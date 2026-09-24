@@ -1,5 +1,9 @@
 # Changelog
 
+## 5.0.10 (2026-09-24)
+
+- Check free or purchased credit eligibility before sending note text to OpenRouter.
+
 ## 5.0.9 (2026-09-24)
 
 - Denali renames files automatically by default, including folder batches. Per-file review is available as an opt-in Settings option.

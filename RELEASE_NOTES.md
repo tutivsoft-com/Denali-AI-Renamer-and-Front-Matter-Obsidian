@@ -26,7 +26,7 @@ Denali now focuses on AI-assisted Markdown filenames. YAML frontmatter is remove
 Updated Constance account registration for email verification and switched billing event IDs to cryptographically secure random values.
 
 <!-- one-click-workflow:start -->
-## Workflow defaults (v5.0.9)
+## Workflow defaults (v5.0.10)
 
 Denali renames files automatically by default, including folder batches. Per-file review is available as an opt-in Settings option.
 <!-- one-click-workflow:end -->

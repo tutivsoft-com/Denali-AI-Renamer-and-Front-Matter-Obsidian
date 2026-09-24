@@ -25,7 +25,7 @@ Denali AI Renamer suggests descriptive filenames for your Obsidian notes. Denali
 Do not claim that Denali writes frontmatter, preserves note contents in the request provider's systems, guarantees naming accuracy, or works offline. The note body is sent to the configured AI service for a user-initiated request; users should review suggestions and choose an account configuration suitable for their notes.
 
 <!-- one-click-workflow:start -->
-## Workflow defaults (v5.0.9)
+## Workflow defaults (v5.0.10)
 
 Denali renames files automatically by default, including folder batches. Per-file review is available as an opt-in Settings option.
 <!-- one-click-workflow:end -->

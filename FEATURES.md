@@ -20,7 +20,7 @@ The note body is sent to OpenRouter for a filename suggestion. Frontmatter is re
 See [README.md](README.md), [REQUIREMENTS.md](REQUIREMENTS.md), [architecture.md](architecture.md), and [docs/USER_GUIDE.md](docs/USER_GUIDE.md) for setup, constraints, data flow, and user instructions.
 
 <!-- one-click-workflow:start -->
-## Workflow defaults (v5.0.9)
+## Workflow defaults (v5.0.10)
 
 Denali renames files automatically by default, including folder batches. Per-file review is available as an opt-in Settings option.
 <!-- one-click-workflow:end -->

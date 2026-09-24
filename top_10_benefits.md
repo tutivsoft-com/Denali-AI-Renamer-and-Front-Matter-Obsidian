@@ -41,7 +41,7 @@
     - **Example:** Notes are only sent to the designated AI API when you click the action.
 
 <!-- one-click-workflow:start -->
-## Workflow defaults (v5.0.9)
+## Workflow defaults (v5.0.10)
 
 Denali renames files automatically by default, including folder batches. Per-file review is available as an opt-in Settings option.
 <!-- one-click-workflow:end -->

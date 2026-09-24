@@ -819,6 +819,48 @@ export default class DenaliAIFileRenamer extends Plugin {
         }
         return { outcome: 'error' };
     }
+
+    /** Check the account-backed free or purchased balance before an AI request. */
+    async checkCreditEligibility(cost: number): Promise<boolean> {
+        const settings = this.settings;
+        if (!settings.billingAccessToken || !settings.billingAccountLinked) {
+            new Notice('Denali AI: sign in or create a billing account in Settings before sending note text to AI.', 6000);
+            return false;
+        }
+        await this.retryPendingSpendEvents();
+        if (this.settings.pendingSpendEvents.length > 0) {
+            new Notice('Denali AI: a previous credit spend is still being reconciled. No AI request was sent.', 5000);
+            return false;
+        }
+        try {
+            const response = await requestUrl({
+                url: `${CONSTANCE_BASE_URL}/api/v1/billing/entitlements/me?${new URLSearchParams({ app_id: CONSTANCE_APP_ID, installation_id: settings.constanceDeviceId }).toString()}`,
+                method: 'GET',
+                headers: { Authorization: `Bearer ${settings.billingAccessToken}` },
+                throw: false,
+            });
+            if (response.status === 401 || response.status === 403 || response.status === 404) {
+                settings.billingAccessToken = '';
+                settings.billingAccountLinked = false;
+                await this.saveSettings();
+                new Notice('Denali AI: your billing session expired. Sign in again before using AI.', 6000);
+                return false;
+            }
+            if (response.status < 200 || response.status >= 300) throw new Error(`HTTP ${response.status}`);
+            const entitlements = response.json?.data;
+            const freeRemaining = Math.max(0, Number(entitlements?.free_usage?.remaining) || 0);
+            const paidBalance = Math.max(0, Number(entitlements?.credits?.balance) || 0);
+            settings.availableCredits = freeRemaining;
+            settings.purchasedCredits = paidBalance;
+            await this.saveSettings();
+            if (freeRemaining >= cost || paidBalance >= cost) return true;
+            new Notice('Denali AI: not enough free or purchased credits. No AI request was sent.', 6000);
+            return false;
+        } catch {
+            new Notice('Denali AI: billing could not be verified. No AI request was sent.', 6000);
+            return false;
+        }
+    }
     // --- END CONSTANCE ---
 
 }
@@ -1192,6 +1234,7 @@ class FileRenamer {
         const { aiModel, maxInputLength, maxOutputLength, aiNameStyle, autoSubfolder } = this.plugin.settings;
         const textToSend = content.length > maxInputLength ? content.substring(0, maxInputLength) : content;
         if (!textToSend.trim()) return { filename: null, folder: null };
+        if (this.plugin.settings.paymentType === 'one-time' && !(await this.plugin.checkCreditEligibility(1))) return { filename: null, folder: null };
         let filenamePrompt = this.plugin.settings.customPrompt;
         if (filenamePrompt === PROMPT_STYLES.balanced || filenamePrompt === PROMPT_STYLES.keywordFilled || filenamePrompt === PROMPT_STYLES.nicheWordsOnly) filenamePrompt = PROMPT_STYLES[aiNameStyle];
         filenamePrompt = filenamePrompt.replace('{max_output_length}', maxOutputLength.toString()).replace('{max_input_length}', maxInputLength.toString());
