@@ -1,5 +1,9 @@
 # Changelog
 
+## 5.0.11 (2026-09-25)
+
+- Synchronized the release version across release metadata and current product documentation; plugin behavior is unchanged.
+
 ## 5.0.10 (2026-09-24)
 
 - Check free or purchased credit eligibility before sending note text to OpenRouter.

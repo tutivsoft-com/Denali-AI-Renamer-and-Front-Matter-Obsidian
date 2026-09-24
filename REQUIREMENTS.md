@@ -32,7 +32,7 @@ Denali suggests names for Markdown notes and renames their paths after a user ac
 - Fresh-vault smoke testing should check a single note, a folder batch, cancellation, collision handling, backup settings, and byte-for-byte note-content preservation.
 
 <!-- one-click-workflow:start -->
-## Workflow defaults (v5.0.10)
+## Workflow defaults (v5.0.11)
 
 Denali renames files automatically by default, including folder batches. Per-file review is available as an opt-in Settings option.
 <!-- one-click-workflow:end -->

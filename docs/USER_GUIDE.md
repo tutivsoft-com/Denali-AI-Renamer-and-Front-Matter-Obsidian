@@ -44,7 +44,7 @@ If the suggested filename already matches the note's current path, Denali skips 
 Denali sends up to the configured input limit of note body text to OpenRouter; it removes the YAML frontmatter block before the request. Note content leaves the vault, so do not process confidential notes unless your provider and account setup are appropriate. Denali changes the note's path only. It does not write to the note file contents or frontmatter.
 
 <!-- one-click-workflow:start -->
-## Workflow defaults (v5.0.10)
+## Workflow defaults (v5.0.11)
 
 Denali renames files automatically by default, including folder batches. Per-file review is available as an opt-in Settings option.
 <!-- one-click-workflow:end -->

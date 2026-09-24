@@ -1,4 +1,10 @@
-# Release 5.0.4
+# Release Notes
+
+## 5.0.11 - 2026-09-25
+
+- Updated release metadata and current documentation version references. Plugin behavior is unchanged.
+
+## Previous release — 5.0.4
 
 - Added current product documentation covering implemented features, requirements, architecture, and verified product claims. No runtime behavior changed.
 
