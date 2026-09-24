@@ -2,6 +2,8 @@
 
 Generate and review AI-assisted filenames for Markdown notes. Denali does not generate, add, or update frontmatter.
 
+Renaming is automatic by default. Enable **Review before applying** in plugin settings to edit or approve suggested names before a rename.
+
 Version: `5.0.4` · [Complete user guide](./docs/USER_GUIDE.md)
 
 ## Current AI Provider

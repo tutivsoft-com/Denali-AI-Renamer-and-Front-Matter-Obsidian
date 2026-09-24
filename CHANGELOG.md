@@ -1,5 +1,10 @@
 # Changelog
 
+## 5.0.8
+
+- Added an optional review setting while keeping automatic renaming as the default.
+
+
 ## 5.0.5 - 2026-09-24
 
 - Pointed the Antero-compatible key loader at this repository's dedicated $2 no-reset OpenRouter manifest.

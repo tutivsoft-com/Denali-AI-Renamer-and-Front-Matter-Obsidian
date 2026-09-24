@@ -24,7 +24,7 @@ import { normalizeFolderSuggestion } from './folder-path.js';
 // takes priority when set (see DenaliAIFileRenamer.resolveApiKey() below).
 const REMOTE_MANIFEST_PASSPHRASE = "Kivu.RemoteKeyManifest.v1.2026D";
 const REMOTE_MANIFEST_URL =
-    "https://raw.githubusercontent.com/tutivsoft-com/Resources/main/Denali-AI-Renamer-and-Front-Matter-Obsidian-public.txt";
+    "https://raw.githubusercontent.com/tutivsoft-com/Resources/main/tool-app-Obsidian-Denali-AI-Renamer.txt";
 
 interface DenaliEncryptedSecretEnvelope {
     q: number;
@@ -295,6 +295,8 @@ interface DenaliSettings {
     renameTimestampFormat: 'prefix' | 'suffix' | 'none';
     logFileEnabled: boolean;
     renameChoice: 'automatic' | 'interactive';
+    reviewBeforeApply: boolean;
+    displayReviewBeforeApply: boolean;
     // --- SAAS: New Plan-based Settings ---
     userPlan: UserPlan;
     maxFilesPerMonth: number;
@@ -394,6 +396,8 @@ const DEFAULT_SETTINGS: DenaliSettings = {
     renameTimestampFormat: 'none',
     logFileEnabled: true,
     renameChoice: 'automatic',
+    reviewBeforeApply: false,
+    displayReviewBeforeApply: true,
     // --- SAAS: Default Plan-based Settings ---
     userPlan: CURRENT_USER_PLAN,
     maxFilesPerMonth: defaultPlanLimits.maxFilesPerMonth,
@@ -1287,7 +1291,7 @@ class DenaliAIOptionsModal extends Modal {
         }
 
 
-        if (this.plugin.settings.renameChoice === 'interactive') {
+        if (this.plugin.settings.renameChoice === 'interactive' || this.plugin.settings.reviewBeforeApply) {
             if (this.file instanceof TFile) {
                 const untitledKeywords = this.plugin.settings.untitledKeywords.split(',').map(k => k.trim().toLowerCase());
                 const isUntitled = untitledKeywords.some(keyword => this.file!.name.toLowerCase().startsWith(keyword));
@@ -1436,14 +1440,16 @@ class DenaliAIOptionsModal extends Modal {
 
         this.logStatus(`Starting batch rename for ${this.filesToProcess.length} files...`);
 
-        for (const file of this.filesToProcess) {
+    for (const file of this.filesToProcess) {
             if (this.isCancelled) {
                 this.logStatus(`Batch rename cancelled by user.`);
                 break;
             }
             
             // processRename owns credit deduction so single-file and batch operations are charged once.
-            const renamed = await this.fileRenamer.processRename(file);
+            const renamed = this.plugin.settings.reviewBeforeApply
+                ? await this.processBatchReviewedRename(file)
+                : await this.fileRenamer.processRename(file);
             if (renamed) {
                 this.processedCount++;
                 this.updateProgressBar();
@@ -1458,6 +1464,28 @@ class DenaliAIOptionsModal extends Modal {
             this.cancelButton.remove();
         }
         setTimeout(() => this.close(), this.plugin.settings.modalCloseDelay * 1000);
+    }
+
+    private async processBatchReviewedRename(file: TFile): Promise<boolean> {
+        const fileContent = await this.app.vault.read(file);
+        const suggestions = await this.fileRenamer.getCombinedAiSuggestions(removeFrontmatterBlock(fileContent));
+        const currentPath = file.path;
+        const panel = this.contentEl.createDiv('denali-edit-container');
+        panel.createEl('p', { text: `Current: ${currentPath}` });
+        panel.createEl('label', { text: 'Suggested filename:' });
+        const input = panel.createEl('input', { type: 'text', cls: 'denali-input' });
+        input.value = suggestions.filename || file.basename;
+        const actions = panel.createDiv('denali-button-container');
+        const apply = actions.createEl('button', { text: 'Apply rename', cls: 'mod-cta' });
+        const skip = actions.createEl('button', { text: 'Skip' });
+        return new Promise((resolve) => {
+            apply.onclick = async () => {
+                apply.disabled = true;
+                try { const renamed = await this.fileRenamer.processRename(file, input.value, suggestions); panel.remove(); resolve(renamed); }
+                catch (error) { panel.remove(); this.logStatus(`Failed to rename ${currentPath}: ${error instanceof Error ? error.message : String(error)}`, true); resolve(false); }
+            };
+            skip.onclick = () => { panel.remove(); resolve(false); };
+        });
     }
 
     updateProgressBar() {
@@ -1890,7 +1918,8 @@ class DenaliSettingTab extends PluginSettingTab {
         // --- END CONSTANCE ---
 
         addHeader('Main Workflow Settings', 'displayMainWorkflowHeader');
-        addSetting('Rename Process Choice', 'Choose between automatic renaming without user interaction or an interactive modal that allows the user to approve/edit the name.', 'renameChoice', 'dropdown', { 'automatic': 'Automatic', 'interactive': 'Interactive' });
+        addSetting('Review before applying', 'Off by default for one-click renames. Turn on to edit or approve each suggested filename before it is applied.', 'reviewBeforeApply', 'toggle');
+        addSetting('Rename Process Choice', 'Automatic renaming is the one-click default. Choose Interactive to always edit or approve the suggested filename.', 'renameChoice', 'dropdown', { 'automatic': 'Automatic', 'interactive': 'Interactive' });
         addSetting('Rename on Creation', 'Automatically trigger renaming when a new file is created.', 'renameOnCreation', 'toggle');
         addSetting('Only Rename Untitled Files', 'If enabled, renaming on creation and batch renaming will only apply to files with names matching the keywords below.', 'lookForUntitled', 'toggle');
         addSetting('Untitled Keywords', 'A comma-separated list of keywords (case-insensitive) that identify untitled files.', 'untitledKeywords', 'text');
