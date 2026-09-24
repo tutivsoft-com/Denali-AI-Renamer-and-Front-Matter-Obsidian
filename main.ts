@@ -24,7 +24,7 @@ import { normalizeFolderSuggestion } from './folder-path.js';
 // takes priority when set (see DenaliAIFileRenamer.resolveApiKey() below).
 const REMOTE_MANIFEST_PASSPHRASE = "Kivu.RemoteKeyManifest.v1.2026D";
 const REMOTE_MANIFEST_URL =
-    "https://raw.githubusercontent.com/tutivsoft-com/Resources/main/desktop-python-JavaScript-Denali-AI-Renamer-and-Front-Matter.txt";
+    "https://raw.githubusercontent.com/tutivsoft-com/Resources/main/Denali-AI-Renamer-and-Front-Matter-Obsidian-public.txt";
 
 interface DenaliEncryptedSecretEnvelope {
     q: number;
@@ -897,8 +897,8 @@ class FileRenamer {
         const apiKey = await this.plugin.resolveApiKey();
 
         if (!apiKey) {
-            this.log(`OpenRouter API Key is missing and the remote key manifest could not be resolved. Please configure a key in plugin settings or check your connection.`, true);
-            throw new Error('OpenRouter API Key is not configured or invalid.');
+            this.log(`Denali AI is temporarily unavailable. Check your connection and try again.`, true);
+            throw new Error('Denali AI service is unavailable.');
         }
 
         params.headers = {
@@ -1897,7 +1897,7 @@ class DenaliSettingTab extends PluginSettingTab {
         addSetting('Auto Subfolder', 'Automatically move the file to a subfolder suggested by the AI based on its content.', 'autoSubfolder', 'toggle');
 
         addHeader('AI & API Settings', 'displayAiApiHeader');
-        addSetting('OpenRouter API Key', 'Enter your OpenRouter API key. It is stored locally and sent only to OpenRouter.', 'openRouterApiKey', 'text');
+        addSetting('OpenRouter API Key (optional)', 'Denali loads its own capped key automatically. Enter a personal key only to override it.', 'openRouterApiKey', 'text');
         addSetting('AI Model', 'Choose the AI model from OpenRouter to use for renaming.', 'aiModel', 'dropdown', OPENROUTER_MODELS.reduce((acc, curr) => ({ ...acc, [curr]: curr }), {}));
         addSetting('AI Name Style', 'Choose the type of filename the AI should generate based on different priorities.', 'aiNameStyle', 'dropdown', { 'balanced': 'Balanced (e.g., Apple Inc Annual Report for 2025)', 'keywordFilled': 'Keyword-Filled (e.g., Code Python Tensorflow Johsnson AI Project memory second fix)', 'nicheWordsOnly': 'Niche Words Only (e.g., apple report 2025 john reviewed approved emergency fix2)' });
         addSetting('Custom AI Prompt', 'Customize the prompt sent to the AI. Use `{content}` as a placeholder for the file content, `{max_input_length}` for the input character limit, and `{max_output_length}` for the output character limit.', 'customPrompt', 'textarea');

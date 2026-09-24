@@ -52,3 +52,7 @@ For a GitHub release, upload only `main.js`, `manifest.json`, and `styles.css`
 as release assets. The release tag must exactly match the version in
 `manifest.json`. Run the plugin build before copying the final `publish/`
 folder, and verify the manifest `authorUrl` is a reachable profile or website.
+
+## OpenRouter key
+
+AI requests use this repository's own $2 no-reset OpenRouter key from an encrypted remote manifest. A personal key in plugin settings takes priority. The manifest format follows Antero's AES-256-GCM/PBKDF2 loader; the bundled passphrase only obscures the key and cannot prevent extraction from a client.
