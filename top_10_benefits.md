@@ -1,4 +1,4 @@
-﻿# Top 10 Benefits of Denali AI Renamer and Front Matter
+# Top 10 Benefits of Denali AI Renamer and Front Matter
 
 1. **Intelligent Content-Based Note Renaming**
    - **Benefit:** Generates descriptive, clean note titles based on actual note contents, eliminating "Untitled" files.
@@ -39,3 +39,9 @@
 10. **Local Settings Privacy**
     - **Benefit:** Vault contents are only processed upon explicit command, with no background tracking.
     - **Example:** Notes are only sent to the designated AI API when you click the action.
+
+<!-- one-click-workflow:start -->
+## Workflow defaults (v5.0.9)
+
+Denali renames files automatically by default, including folder batches. Per-file review is available as an opt-in Settings option.
+<!-- one-click-workflow:end -->

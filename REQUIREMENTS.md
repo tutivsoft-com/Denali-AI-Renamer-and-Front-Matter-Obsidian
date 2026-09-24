@@ -30,3 +30,9 @@ Denali suggests names for Markdown notes and renames their paths after a user ac
 - Denali does not guarantee that generated filenames are correct; users should review suggestions when using interactive mode.
 - The release bundle must keep source, manifest, version map, documentation, and built runtime aligned. The public tagged release must include the reviewable TypeScript source.
 - Fresh-vault smoke testing should check a single note, a folder batch, cancellation, collision handling, backup settings, and byte-for-byte note-content preservation.
+
+<!-- one-click-workflow:start -->
+## Workflow defaults (v5.0.9)
+
+Denali renames files automatically by default, including folder batches. Per-file review is available as an opt-in Settings option.
+<!-- one-click-workflow:end -->

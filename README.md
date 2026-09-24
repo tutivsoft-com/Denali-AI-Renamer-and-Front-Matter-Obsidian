@@ -4,7 +4,7 @@ Generate and review AI-assisted filenames for Markdown notes. Denali does not ge
 
 Renaming is automatic by default. Enable **Review before applying** in plugin settings to edit or approve suggested names before a rename.
 
-Version: `5.0.4` · [Complete user guide](./docs/USER_GUIDE.md)
+Version: `5.0.9` · [Complete user guide](./docs/USER_GUIDE.md)
 
 ## Current AI Provider
 
@@ -58,3 +58,9 @@ folder, and verify the manifest `authorUrl` is a reachable profile or website.
 ## OpenRouter key
 
 AI requests use this repository's own $2 no-reset OpenRouter key from an encrypted remote manifest. A personal key in plugin settings takes priority. The manifest format follows Antero's AES-256-GCM/PBKDF2 loader; the bundled passphrase only obscures the key and cannot prevent extraction from a client.
+
+<!-- one-click-workflow:start -->
+## Workflow defaults (v5.0.9)
+
+Denali renames files automatically by default, including folder batches. Per-file review is available as an opt-in Settings option.
+<!-- one-click-workflow:end -->
