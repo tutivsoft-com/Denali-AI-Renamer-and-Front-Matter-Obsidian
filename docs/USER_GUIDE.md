@@ -2,7 +2,7 @@
 
 ## What Denali does
 
-Denali suggests filenames from Markdown note bodies and renames notes after review. It does not generate or edit frontmatter, properties, aliases, tags, or note-body text. Existing YAML frontmatter is excluded from the AI input.
+Denali suggests filenames from Markdown note bodies and renames notes automatically by default. Enable Review before applying to review and edit suggestions first. It does not generate or edit frontmatter, properties, aliases, tags, or note-body text. Existing YAML frontmatter is excluded from the AI input.
 
 ## Get started
 

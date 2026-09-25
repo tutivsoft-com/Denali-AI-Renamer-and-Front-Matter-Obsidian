@@ -1,70 +1,32 @@
 # Denali AI Renamer
 
-Generate and review AI-assisted filenames for Markdown notes. Denali does not generate, add, or update frontmatter.
+Create useful Markdown filenames from note content with AI-assisted suggestions.
 
-Renaming is automatic by default. Enable **Review before applying** in plugin settings to edit or approve suggested names before a rename. The AI request queue shows each submitted excerpt and elapsed time; requests run one at a time, and waiting requests can be cleared.
+Version: 5.0.17
 
-Version: `5.0.14` · [Complete user guide](./docs/USER_GUIDE.md)
+## Features
 
-## Current AI Provider
+- Rename the current note or process selected Markdown files and folders.
+- Rename automatically by default, or enable Review before applying to edit or approve suggestions.
+- Watch requests, elapsed time, and completion status in the live request queue.
+- Keep note content and existing YAML frontmatter unchanged.
+- Use optional backups and Markdown logs to help recover or troubleshoot.
 
-Denali uses OpenRouter Chat Completions at `https://openrouter.ai/api/v1/chat/completions` with OpenRouter model IDs. A user-supplied API key in Advanced settings takes precedence; when blank, Denali may use its managed encrypted key connection. The AI receives the note body without the YAML frontmatter block. Renaming changes the file path only; note content and frontmatter remain unchanged.
+## Get started
 
-## Billing and usage
+1. Install and enable Denali AI Renamer from Obsidian Community plugins.
+2. Open Settings, then Community plugins, then Denali AI Renamer.
+3. Choose an OpenRouter model and configure the available managed or personal API key option.
+4. Open a disposable Markdown note and run the Denali rename command.
 
-Denali uses an authenticated TutivSoft Constance billing account for its
-one-time credit packs (`app_id: denali-ai-file-renamer-front-matter`). Account
-registration may require email verification; enter the emailed token in the
-plugin settings before buying or spending credits. Checkout uses Constance's
-`/buy` redirect with the app-specific Paddle price id and stable installation
-id, while entitlement polling and idempotent credit/free-usage spends use the
-authenticated `/api/v1/billing/...` endpoints. This backend-less plugin does
-not hold a shared HMAC secret or receive server callbacks; the bearer-linked
-installation is the current supported client flow.
+## Privacy
 
-Before sending note text to OpenRouter, Denali reads the current account
-entitlement and checks for at least one free or purchased credit. It claims or
-spends the credit only when a rename is ready to apply.
+Denali sends Markdown note body text to OpenRouter to generate filename suggestions. Existing YAML frontmatter is removed from the AI input. Note text leaves the vault, so do not process confidential notes unless your provider and account setup are appropriate. Renaming changes the file path only; Denali does not change note contents or frontmatter.
 
-## Project documentation (plugin 5.0.13)
+Optional account, credit, and purchase features are described in plugin settings.
 
-- [FEATURES.md](./FEATURES.md) — implemented product features and the content boundary.
-- [REQUIREMENTS.md](./REQUIREMENTS.md) — current product requirements and release checks.
-- [architecture.md](./architecture.md) — Architectural overview and data flow.
-- [MARKETING.md](./MARKETING.md) — verified product copy and claim boundaries.
-- [ai_model.md](./ai_model.md) — AI model evidence and detection metadata.
-- [HISTORY.md](./HISTORY.md) — Version history timeline.
-- [CONTRIBUTORS.md](./CONTRIBUTORS.md) — Contributor attribution.
+## Compatibility
 
-## Public Plugin Publishing
+Denali requires Obsidian 1.5.0 or later.
 
-This checkout is the private/source repository. The canonical public GitHub
-repository is [`tutivsoft-com/Denali-AI-Renamer-and-Front-Matter-Obsidian`](https://github.com/tutivsoft-com/Denali-AI-Renamer-and-Front-Matter-Obsidian),
-and its release contents are staged in the source repository’s `publish/` directory. Copy the contents of
-`publish/` into the public repository root. Never copy credentials, logs,
-`node_modules`, or private project metadata.
-
-The public repository root must contain:
-
-- `README.md`
-- `LICENSE`
-- `manifest.json`
-- `main.ts`
-- `main.js`
-- `styles.css`
-- `.github/workflows/release-attestations.yml`
-
-For a GitHub release, upload only `main.js`, `manifest.json`, and `styles.css`
-as release assets. The release tag must exactly match the version in
-`manifest.json`. Run the plugin build before copying the final `publish/`
-folder, and verify the manifest `authorUrl` is a reachable profile or website.
-
-## OpenRouter key
-
-AI requests use this repository's own $2 no-reset OpenRouter key from an encrypted remote manifest. A personal key in plugin settings takes priority. The manifest format follows Antero's AES-256-GCM/PBKDF2 loader; the bundled passphrase only obscures the key and cannot prevent extraction from a client.
-
-<!-- one-click-workflow:start -->
-## Workflow defaults (v5.0.13)
-
-Denali renames files automatically by default, including folder batches. Per-file review is available as an opt-in Settings option.
-<!-- one-click-workflow:end -->
+See the [complete user guide](docs/USER_GUIDE.md) for commands, batch renaming, settings, backups, logs, and troubleshooting.

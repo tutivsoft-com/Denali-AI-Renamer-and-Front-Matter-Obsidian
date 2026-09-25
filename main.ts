@@ -1572,6 +1572,7 @@ class DenaliSettingTab extends PluginSettingTab {
     display(): void {
         const { containerEl } = this;
         containerEl.empty();
+    this.plugin.support.addDiagnosticsSetting(containerEl);
 
         const addSetting = (name: string, desc: string, settingKey: keyof DenaliSettings, type: 'toggle' | 'text' | 'dropdown' | 'textarea' | 'button', options?: { [key: string]: string }) => {
             let displayKey: keyof DenaliSettings;
