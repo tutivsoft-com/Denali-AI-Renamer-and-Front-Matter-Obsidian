@@ -1,5 +1,10 @@
 # Release Notes
 
+## 5.0.14 - 2026-09-25
+
+- Synchronized version metadata and the packaged runtime across the source and public release repositories.
+
+
 ## 5.0.13 - 2026-09-25
 
 - Added a live filename request queue with text excerpts, elapsed time, completion status, and a control to clear waiting requests.

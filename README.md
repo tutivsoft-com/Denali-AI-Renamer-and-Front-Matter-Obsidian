@@ -4,7 +4,7 @@ Generate and review AI-assisted filenames for Markdown notes. Denali does not ge
 
 Renaming is automatic by default. Enable **Review before applying** in plugin settings to edit or approve suggested names before a rename. The AI request queue shows each submitted excerpt and elapsed time; requests run one at a time, and waiting requests can be cleared.
 
-Version: `5.0.13` · [Complete user guide](./docs/USER_GUIDE.md)
+Version: `5.0.14` · [Complete user guide](./docs/USER_GUIDE.md)
 
 ## Current AI Provider
 

@@ -1,6 +1,6 @@
 # Denali AI Renamer — Architecture
 
-Version: `5.0.11`
+Version: `5.0.10`
 
 ## Product boundary
 
@@ -40,7 +40,7 @@ flowchart LR
 `MyHelloWorldPlugin/main.ts` is the source entry point. `npm run build` creates `publish/main.js`; the source, manifest, styles, and public documentation are mirrored into `publish/`. Building the staging bundle does not publish it to Obsidian or to the public repository.
 
 <!-- one-click-workflow:start -->
-## Workflow defaults (v5.0.11)
+## Workflow defaults (v5.0.10)
 
 Denali renames files automatically by default, including folder batches. Per-file review is available as an opt-in Settings option.
 <!-- one-click-workflow:end -->

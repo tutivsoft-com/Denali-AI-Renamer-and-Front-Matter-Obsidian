@@ -1,47 +1,18 @@
-# Top 10 Benefits of Denali AI Renamer and Front Matter
+# Top 10 Benefits of Denali AI Renamer
 
-1. **Intelligent Content-Based Note Renaming**
-   - **Benefit:** Generates descriptive, clean note titles based on actual note contents, eliminating "Untitled" files.
-   - **Example:** Renames a raw meeting transcript `Untitled 14.md` to `2026-09-Q3-Marketing-Strategy-Review.md`.
-
-2. **Automated YAML Frontmatter Generation**
-   - **Benefit:** Creates structured, standardized metadata headers for your notes automatically.
-   - **Example:** Injects clean YAML keys (`title`, `date`, `tags`, `summary`, `status`) at the top of an unstructured note.
-
-3. **Existing Metadata Preservation & Merge**
-   - **Benefit:** Updates or adds missing frontmatter properties without erasing your custom existing keys.
-   - **Example:** Keeps your custom `project: Apollo` and `priority: high` fields while generating missing `tags` and `summary`.
-
-4. **Automated Link & Backlink Integrity**
-   - **Benefit:** Renaming notes through Obsidian APIs updates all incoming wikilinks across the vault.
-   - **Example:** Renaming `Rough Ideas.md` automatically updates `[[Rough Ideas]]` to the new name in 25 other notes.
-
-5. **Batch Folder Processing**
-   - **Benefit:** Organize, rename, and tag entire directories of messy imports simultaneously.
-   - **Example:** Select an imported `Web Clippings` folder and standardize every note in a single run.
-
-6. **Pre-Apply Review & Diff Inspector**
-   - **Benefit:** Inspect proposed filename changes and generated YAML diffs before any file is touched.
-   - **Example:** Review a table of old names vs new proposed names and uncheck any you want to leave as-is.
-
-7. **Custom Prompt & Classification Tuning**
-   - **Benefit:** Tailor AI instructions to match your personal taxonomy or Zettelkasten conventions.
-   - **Example:** Configure Denali to always include date prefixes (e.g., `YYYY-MM-DD-title`) and enforce specific tag formats.
-
-8. **OpenRouter Model Choice**
-   - **Benefit:** Choose optimal LLM backends for speed or semantic classification depth.
-   - **Example:** Use a fast model to process hundreds of notes rapidly and economically.
-
-9. **Safety Safeguards & Restore Capabilities**
-   - **Benefit:** Revert recent batch naming operations if you change your mind.
-   - **Example:** Run *Denali: Restore recent changes* to bring back previous filenames if needed.
-
-10. **Local Settings Privacy**
-    - **Benefit:** Vault contents are only processed upon explicit command, with no background tracking.
-    - **Example:** Notes are only sent to the designated AI API when you click the action.
+1. **Content-aware filenames** — Suggests useful names from Markdown note bodies.
+2. **Human review** — Interactive mode lets you edit a suggested filename before the rename.
+3. **Folder processing** — Rename notes in a selected folder as a batch.
+4. **Collision handling** — Adds a suffix when the target filename already exists.
+5. **Naming styles** — Choose balanced, keyword-rich, niche-term, kebab-case, camelCase, lowercase, or original formatting.
+6. **Custom prompts** — Adjust filename suggestions to fit your naming preferences.
+7. **Safe optional folder suggestions** — Let the AI suggest a destination subfolder when enabled; unsafe absolute or traversal paths are ignored, and valid missing folders are created.
+8. **Optional backups** — Keep a copy of a note before renaming it.
+9. **Logs and progress** — Review batch progress and optional troubleshooting logs.
+10. **No content edits** — Denali changes the file path only. It excludes YAML frontmatter from AI input and leaves note contents unchanged.
 
 <!-- one-click-workflow:start -->
-## Workflow defaults (v5.0.11)
+## Workflow defaults (v5.0.10)
 
 Denali renames files automatically by default, including folder batches. Per-file review is available as an opt-in Settings option.
 <!-- one-click-workflow:end -->

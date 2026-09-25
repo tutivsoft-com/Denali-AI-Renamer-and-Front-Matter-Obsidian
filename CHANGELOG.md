@@ -1,5 +1,10 @@
 # Changelog
 
+## 5.0.14 (2026-09-25)
+
+- Synchronized version metadata and the packaged runtime across the source and public release repositories.
+
+
 ## 5.0.13 (2026-09-25)
 
 - Show filename requests in a live queue with the submitted note excerpt, elapsed seconds, and completion status.
