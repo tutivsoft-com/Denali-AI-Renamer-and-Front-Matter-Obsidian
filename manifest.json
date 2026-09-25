@@ -1,7 +1,7 @@
 {
   "id": "denali-ai-file-renamer-front-matter",
   "name": "Denali AI Renamer",
-  "version": "5.0.17",
+  "version": "5.0.18",
   "minAppVersion": "1.5.0",
   "description": "AI-assisted Markdown filename suggestions with automatic or review-before-apply renaming.",
   "author": "TutivSoft",
