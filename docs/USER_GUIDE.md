@@ -15,6 +15,8 @@ Denali suggests filenames from Markdown note bodies and renames notes after revi
 
 Open a Markdown note and choose **Denali AI Renamer: Rename current note** from the command palette (or use **Denali AI: Rename note** in the file menu). Denali reads the note body, asks OpenRouter for a filename, and shows the suggestion in interactive mode so you can edit it before renaming.
 
+Denali opens its AI request queue while the suggestion is being generated. The queue shows the submitted note excerpt, elapsed seconds, and completion status. Requests from overlapping actions run one at a time; you can clear waiting requests without stopping the active request. Reopen the queue from plugin Settings or the command palette.
+
 Example body:
 
 ```markdown
@@ -44,7 +46,7 @@ If the suggested filename already matches the note's current path, Denali skips 
 Denali sends up to the configured input limit of note body text to OpenRouter; it removes the YAML frontmatter block before the request. Note content leaves the vault, so do not process confidential notes unless your provider and account setup are appropriate. Denali changes the note's path only. It does not write to the note file contents or frontmatter.
 
 <!-- one-click-workflow:start -->
-## Workflow defaults (v5.0.11)
+## Workflow defaults (v5.0.13)
 
 Denali renames files automatically by default, including folder batches. Per-file review is available as an opt-in Settings option.
 <!-- one-click-workflow:end -->

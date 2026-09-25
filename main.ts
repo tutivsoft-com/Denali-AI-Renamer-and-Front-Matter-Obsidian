@@ -13,6 +13,7 @@ import { requestUrl, RequestUrlParam, RequestUrlResponse } from 'obsidian'; // I
 import { addBillingAccountSettings, claimAccountFreeUsage, spendAccountCredits } from './constance-account';
 import { PluginSupport } from './plugin-support';
 import { normalizeFolderSuggestion } from './folder-path.js';
+import { AiRequestQueue } from './ai-request-queue';
 
 // --- Pattern B remote key manifest (TutivSoft.OpenAiKeyManifest port) ---
 // Fetches this app's own encrypted OpenRouter key from a GitHub-hosted manifest
@@ -534,6 +535,7 @@ class ConfirmationModal extends Modal {
 export default class DenaliAIFileRenamer extends Plugin {
     settings: DenaliSettings;
     support!: PluginSupport;
+    aiQueue!: AiRequestQueue;
     renameModal: DenaliAIOptionsModal | null = null;
 
     public static readonly DENALI_FOLDER = 'Denali AI';
@@ -574,6 +576,7 @@ export default class DenaliAIFileRenamer extends Plugin {
     this.support = new PluginSupport(this, { name: 'Denali AI Renamer', summary: 'Generate safer filenames from Markdown note content.', quickStart: ['Sign in to billing in Settings.', 'Open a Markdown note.', 'Run the Denali rename command and approve the filename.'], commands: ['Rename current note', 'Open Denali options', 'Copy debug log'], troubleshooting: ['Use Copy debug log before reporting a problem.', 'Check that the note is writable and has enough content to name.'] });
         this.support.start();
         await this.loadSettings();
+        this.aiQueue = new AiRequestQueue(this.app, 'Denali');
 
         // --- CONSTANCE: Ensure a stable device id exists, created once and reused forever ---
         if (!this.settings.constanceDeviceId) {
@@ -600,6 +603,7 @@ export default class DenaliAIFileRenamer extends Plugin {
         await this.saveSettings();
 
         this.addSettingTab(new DenaliSettingTab(this.app, this));
+        this.addCommand({ id: 'show-ai-request-queue', name: 'Show AI request queue', callback: () => this.aiQueue.open() });
 
         this.addCommand({
             id: 'open-denali-ai-options',
@@ -1112,7 +1116,8 @@ class FileRenamer {
                 newName = suggestedName;
                 folderSuggestion = initialAiSuggestions.folder;
             } else {
-                const suggestions = await this.getCombinedAiSuggestions(textToSend);
+                const suggestions = await this.getCombinedAiSuggestions(textToSend, oldName);
+                if (!suggestions) return false;
                 newName = suggestions.filename;
                 folderSuggestion = suggestions.folder;
                 if (suggestedName) newName = suggestedName;
@@ -1230,10 +1235,12 @@ class FileRenamer {
     }
 
     /** Produce filename and optional subfolder suggestions in one provider request. */
-    async getCombinedAiSuggestions(content: string): Promise<{ filename: string | null; folder: string | null }> {
+    async getCombinedAiSuggestions(content: string, targetLabel = 'note'): Promise<{ filename: string | null; folder: string | null } | null> {
         const { aiModel, maxInputLength, maxOutputLength, aiNameStyle, autoSubfolder } = this.plugin.settings;
         const textToSend = content.length > maxInputLength ? content.substring(0, maxInputLength) : content;
         if (!textToSend.trim()) return { filename: null, folder: null };
+        const queued = await this.plugin.aiQueue.enqueue(`Filename suggestion for ${targetLabel}`, textToSend, async (report) => {
+        report({ label: 'Checking credit eligibility', submittedText: textToSend });
         if (this.plugin.settings.paymentType === 'one-time' && !(await this.plugin.checkCreditEligibility(1))) return { filename: null, folder: null };
         let filenamePrompt = this.plugin.settings.customPrompt;
         if (filenamePrompt === PROMPT_STYLES.balanced || filenamePrompt === PROMPT_STYLES.keywordFilled || filenamePrompt === PROMPT_STYLES.nicheWordsOnly) filenamePrompt = PROMPT_STYLES[aiNameStyle];
@@ -1251,6 +1258,7 @@ class FileRenamer {
             response_format: { type: 'json_object' },
         };
         try {
+            report({ label: 'Sending text to OpenRouter', submittedText: textToSend });
             this.log('Requesting filename suggestion...');
             const response = await this.makeOpenRouterRequestWithRetries(
                 { url: 'https://openrouter.ai/api/v1/chat/completions', method: 'POST', body: JSON.stringify(requestBody) },
@@ -1270,6 +1278,8 @@ class FileRenamer {
             console.error('OpenRouter filename request failed:', error);
             return { filename: null, folder: null };
         }
+        });
+        return queued.status === 'completed' ? queued.value : null;
     }
 
 }
@@ -1399,7 +1409,12 @@ class DenaliAIOptionsModal extends Modal {
         this.logStatus('Generating a filename suggestion...');
         try {
             const fileContent = await this.app.vault.read(file);
-            const aiSuggestions = await this.fileRenamer.getCombinedAiSuggestions(removeFrontmatterBlock(fileContent));
+            const aiSuggestions = await this.fileRenamer.getCombinedAiSuggestions(removeFrontmatterBlock(fileContent), file.name);
+            if (!aiSuggestions) {
+                this.logStatus('Filename suggestion was removed from the waiting queue.', true);
+                this.close();
+                return;
+            }
 
             this.suggestedName = aiSuggestions.filename || file.basename; // Use AI filename or original basename
             this.initialAiSuggestions = aiSuggestions;
@@ -1511,7 +1526,8 @@ class DenaliAIOptionsModal extends Modal {
 
     private async processBatchReviewedRename(file: TFile): Promise<boolean> {
         const fileContent = await this.app.vault.read(file);
-        const suggestions = await this.fileRenamer.getCombinedAiSuggestions(removeFrontmatterBlock(fileContent));
+        const suggestions = await this.fileRenamer.getCombinedAiSuggestions(removeFrontmatterBlock(fileContent), file.name);
+        if (!suggestions) return false;
         const currentPath = file.path;
         const panel = this.contentEl.createDiv('denali-edit-container');
         panel.createEl('p', { text: `Current: ${currentPath}` });
@@ -1846,6 +1862,10 @@ class DenaliSettingTab extends PluginSettingTab {
         containerEl.createEl('h2', { text: 'Denali AI Renamer Settings' });
         containerEl.createEl('p', { text: 'Start with a Markdown note, then use the command palette or the note/folder context menu to run Denali AI.' });
         containerEl.createEl('p', { text: 'Denali includes a free starter allowance. An OpenRouter API key is optional when the managed connection is available; add your own key below if you prefer.' });
+        new Setting(containerEl)
+            .setName('AI request queue')
+            .setDesc('View the active filename request, submitted text excerpt and elapsed time, or clear waiting requests.')
+            .addButton(button => button.setButtonText('Show queue').onClick(() => this.plugin.aiQueue.open()));
         new Setting(containerEl)
             .setName('Show advanced settings')
             .setDesc('Reveal model, prompt, naming, backup, and logging controls.')

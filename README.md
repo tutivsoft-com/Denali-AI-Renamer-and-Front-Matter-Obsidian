@@ -2,9 +2,9 @@
 
 Generate and review AI-assisted filenames for Markdown notes. Denali does not generate, add, or update frontmatter.
 
-Renaming is automatic by default. Enable **Review before applying** in plugin settings to edit or approve suggested names before a rename.
+Renaming is automatic by default. Enable **Review before applying** in plugin settings to edit or approve suggested names before a rename. The AI request queue shows each submitted excerpt and elapsed time; requests run one at a time, and waiting requests can be cleared.
 
-Version: `5.0.11` · [Complete user guide](./docs/USER_GUIDE.md)
+Version: `5.0.13` · [Complete user guide](./docs/USER_GUIDE.md)
 
 ## Current AI Provider
 
@@ -26,7 +26,7 @@ Before sending note text to OpenRouter, Denali reads the current account
 entitlement and checks for at least one free or purchased credit. It claims or
 spends the credit only when a rename is ready to apply.
 
-## Project documentation (plugin 5.0.4)
+## Project documentation (plugin 5.0.13)
 
 - [FEATURES.md](./FEATURES.md) — implemented product features and the content boundary.
 - [REQUIREMENTS.md](./REQUIREMENTS.md) — current product requirements and release checks.
@@ -64,7 +64,7 @@ folder, and verify the manifest `authorUrl` is a reachable profile or website.
 AI requests use this repository's own $2 no-reset OpenRouter key from an encrypted remote manifest. A personal key in plugin settings takes priority. The manifest format follows Antero's AES-256-GCM/PBKDF2 loader; the bundled passphrase only obscures the key and cannot prevent extraction from a client.
 
 <!-- one-click-workflow:start -->
-## Workflow defaults (v5.0.11)
+## Workflow defaults (v5.0.13)
 
 Denali renames files automatically by default, including folder batches. Per-file review is available as an opt-in Settings option.
 <!-- one-click-workflow:end -->

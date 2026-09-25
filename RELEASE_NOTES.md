@@ -1,8 +1,8 @@
 # Release Notes
 
-## 5.0.11 - 2026-09-25
+## 5.0.13 - 2026-09-25
 
-- Updated release metadata and current documentation version references. Plugin behavior is unchanged.
+- Added a live filename request queue with text excerpts, elapsed time, completion status, and a control to clear waiting requests.
 
 ## Previous release — 5.0.4
 
@@ -32,7 +32,7 @@ Denali now focuses on AI-assisted Markdown filenames. YAML frontmatter is remove
 Updated Constance account registration for email verification and switched billing event IDs to cryptographically secure random values.
 
 <!-- one-click-workflow:start -->
-## Workflow defaults (v5.0.10)
+## Workflow defaults (v5.0.13)
 
 Denali renames files automatically by default, including folder batches. Per-file review is available as an opt-in Settings option.
 <!-- one-click-workflow:end -->

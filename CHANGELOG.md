@@ -1,8 +1,9 @@
 # Changelog
 
-## 5.0.11 (2026-09-25)
+## 5.0.13 (2026-09-25)
 
-- Synchronized the release version across release metadata and current product documentation; plugin behavior is unchanged.
+- Show filename requests in a live queue with the submitted note excerpt, elapsed seconds, and completion status.
+- Serialize overlapping requests and let users clear waiting requests while the active request finishes.
 
 ## 5.0.10 (2026-09-24)
 
