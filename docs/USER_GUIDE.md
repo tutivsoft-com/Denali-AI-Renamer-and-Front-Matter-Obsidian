@@ -50,3 +50,7 @@ Denali sends up to the configured input limit of note body text to OpenRouter; i
 
 Denali renames files automatically by default, including folder batches. Per-file review is available as an opt-in Settings option.
 <!-- one-click-workflow:end -->
+
+## Billing account sessions (5.0.24)
+
+Create an account, follow the email confirmation link, then sign in. The plugin saves and rotates account session tokens, never your password. Sign out clears the saved session and revokes its refresh token. Use **Forgot password?** to open the central reset page. Credit purchases require sign-in and are linked to the account and this installation.
