@@ -2,7 +2,7 @@
 
 Create useful Markdown filenames from note content with AI-assisted suggestions.
 
-Version: 5.0.22
+Version: 5.0.24
 
 ## Features
 
@@ -35,4 +35,4 @@ See the [complete user guide](docs/USER_GUIDE.md) for commands, batch renaming, 
 
 Account and billing controls appear at the top of settings. Register with an email and password, confirm the link sent by email, then return and sign in. The settings page shows the current balance and provides balance refresh, sign-out, and purchase controls. Metered actions show the available balance and report the amount used with the remaining balance when the action completes.
 
-Current version: 5.0.22.
+Current version: 5.0.24.
