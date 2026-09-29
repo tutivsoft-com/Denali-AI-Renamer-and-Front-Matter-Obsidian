@@ -167,7 +167,16 @@ export function clearBillingSession(state: ConstanceAccountState): void {
   state.billingAccountLinked = false;
 }
 
+const refreshes = new WeakMap<ConstanceAccountState, Promise<string>>();
 export async function activeBillingToken(adapter: ConstanceAccountAdapter): Promise<string> {
+  const pending = refreshes.get(adapter.state);
+  if (pending) return pending;
+  const refresh = refreshBillingToken(adapter);
+  refreshes.set(adapter.state, refresh);
+  try { return await refresh; } finally { refreshes.delete(adapter.state); }
+}
+
+async function refreshBillingToken(adapter: ConstanceAccountAdapter): Promise<string> {
   const state = adapter.state;
   if (!state.billingAccountLinked) return "";
   if (state.billingAccessToken && (!state.billingRefreshToken || (state.billingAccessExpiresAt > 0 && Date.now() < state.billingAccessExpiresAt - 30000))) return state.billingAccessToken;
@@ -185,6 +194,17 @@ export async function activeBillingToken(adapter: ConstanceAccountAdapter): Prom
   return state.billingAccessToken;
 }
 
+export async function billingRequest(adapter: ConstanceAccountAdapter, options: any): Promise<any> {
+  let token = await activeBillingToken(adapter);
+  let response = await requestUrl({...options, headers: {...options.headers, Authorization: `Bearer ${token}`}, throw: false});
+  if (response.status === 401 && adapter.state.billingRefreshToken) {
+    adapter.state.billingAccessExpiresAt = 1;
+    token = await activeBillingToken(adapter);
+    if (token) response = await requestUrl({...options, headers: {...options.headers, Authorization: `Bearer ${token}`}, throw: false});
+  }
+  return response;
+}
+
 export async function claimAccountFreeUsage(
   adapter: ConstanceAccountAdapter,
   appId: string,
@@ -195,7 +215,7 @@ export async function claimAccountFreeUsage(
   const token = await activeBillingToken(adapter);
   if (!token) return { kind: "auth-required" };
   try {
-    const response = await requestUrl({
+    const response = await billingRequest(adapter, {
       url: `${CONSTANCE_ACCOUNT_BASE_URL}/api/v1/billing/free-usage/claim`,
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -226,7 +246,7 @@ export async function spendAccountCredits(
   const token = await activeBillingToken(adapter);
   if (!token) return { kind: "auth-required" };
   try {
-    const response = await requestUrl({
+    const response = await billingRequest(adapter, {
       url: `${CONSTANCE_ACCOUNT_BASE_URL}/api/v1/billing/credits/spend`,
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },

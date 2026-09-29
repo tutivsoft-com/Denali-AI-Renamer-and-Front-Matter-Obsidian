@@ -10,7 +10,7 @@
 
 import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, TFile, TFolder } from 'obsidian';
 import { requestUrl, RequestUrlParam, RequestUrlResponse } from 'obsidian'; // Import RequestUrlParam and RequestUrlResponse
-import { addBillingAccountSettings, claimAccountFreeUsage, spendAccountCredits, activeBillingToken, clearBillingSession } from './constance-account';
+import { addBillingAccountSettings, claimAccountFreeUsage, spendAccountCredits, activeBillingToken, clearBillingSession, billingRequest } from './constance-account';
 import { PluginSupport } from './plugin-support';
 import { normalizeFolderSuggestion } from './folder-path.js';
 import { AiRequestQueue } from './ai-request-queue';
@@ -753,7 +753,7 @@ export default class DenaliAIFileRenamer extends Plugin {
             return;
         }
         try {
-            const response = await requestUrl({
+            const response = await billingRequest({state: this.settings, appId: CONSTANCE_APP_ID, installationId: deviceId, persist: () => this.saveSettings(), syncBalance: async () => {}}, {
                 url: `${CONSTANCE_BASE_URL}/api/v1/billing/entitlements/me?${new URLSearchParams({ app_id: CONSTANCE_APP_ID, installation_id: deviceId }).toString()}`,
                 method: 'GET',
                 headers: { Authorization: `Bearer ${token}` },
@@ -830,7 +830,7 @@ export default class DenaliAIFileRenamer extends Plugin {
             return false;
         }
         try {
-            const response = await requestUrl({
+            const response = await billingRequest({state: settings, appId: CONSTANCE_APP_ID, installationId: settings.constanceDeviceId, persist: () => this.saveSettings(), syncBalance: async () => {}}, {
                 url: `${CONSTANCE_BASE_URL}/api/v1/billing/entitlements/me?${new URLSearchParams({ app_id: CONSTANCE_APP_ID, installation_id: settings.constanceDeviceId }).toString()}`,
                 method: 'GET',
                 headers: { Authorization: `Bearer ${token}` },
