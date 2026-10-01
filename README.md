@@ -1,38 +1,20 @@
 # Denali AI Renamer
 
-Create useful Markdown filenames from note content with AI-assisted suggestions.
+Version: 5.0.27
 
-Version: 5.0.24
+Create useful Markdown filenames from note content with managed AI suggestions. Denali leaves note content and existing YAML frontmatter unchanged; review and recovery options are available in plugin settings.
 
-## Features
+## Billing and current offers
 
-- Rename the current note or process selected Markdown files and folders.
-- Rename automatically by default, or enable Review before applying to edit or approve suggestions.
-- Watch requests, elapsed time, and completion status in the live request queue.
-- Keep note content and existing YAML frontmatter unchanged.
-- Use optional backups and Markdown logs to help recover or troubleshoot.
+The plugin displays the exact current price, product description, availability, and included credits returned by the live Constance catalog. Prices and included amounts are not hardcoded in this README or used as a fallback. If the catalog or billing policy is unavailable, purchase controls stay unavailable. Payment is confirmed by the server before account credits are updated.
 
-## Get started
-
-1. Install and enable Denali AI Renamer from Obsidian Community plugins.
-2. Open Settings, then Community plugins, then Denali AI Renamer.
-3. Choose an OpenRouter model and configure the available managed or personal API key option.
-4. Open a disposable Markdown note and run the Denali rename command.
+Usage is measured in credits authorized for the operation.
 
 ## Privacy
 
-Denali sends Markdown note body text to OpenRouter to generate filename suggestions. Existing YAML frontmatter is removed from the AI input. Note text leaves the vault, so do not process confidential notes unless your provider and account setup are appropriate. Renaming changes the file path only; Denali does not change note contents or frontmatter.
+Only content needed for an operation you start is sent to the service that performs it. Avoid submitting sensitive vault content unless you have reviewed the applicable provider terms. The plugin does not require you to provide a personal AI provider key.
 
-Optional account, credit, and purchase features are described in plugin settings.
+## Installation
 
-## Compatibility
-
-Denali requires Obsidian 1.5.0 or later.
-
-See the [complete user guide](docs/USER_GUIDE.md) for commands, batch renaming, settings, backups, logs, and troubleshooting.
-
-## Account, billing, and credit feedback
-
-Account and billing controls appear at the top of settings. Register with an email and password, confirm the link sent by email, then return and sign in. The settings page shows the current balance and provides balance refresh, sign-out, and purchase controls. Metered actions show the available balance and report the amount used with the remaining balance when the action completes.
-
-Current version: 5.0.24.
+Install **Denali AI Renamer** from Obsidian Community plugins, then enable it in Settings → Community plugins.
+See the [user guide](./docs/USER_GUIDE.md) for setup and troubleshooting.
