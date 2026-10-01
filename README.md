@@ -2,7 +2,7 @@
 
 Create useful Markdown filenames from note content with AI-assisted suggestions.
 
-Version: 5.0.24
+Public candidate manifest: `5.0.24` (latest completed Community release: `5.0.22`; private source: `5.0.26`)
 
 ## Features
 
