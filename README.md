@@ -1,49 +1,47 @@
 # Denali AI Renamer
 
-Version: 5.0.33 — validated locally for publication; release pending.
+Version: 5.0.34.
 
-## Current purchase behavior
+## Purchases
 
 Purchase settings load the app's current offer configuration and Paddle prices from Constance. Offer quantities use the app's native billing unit from that configuration; displayed amounts and descriptions come from the current provider price. The client matches offers by exact configured price ID and enables purchase only when Constance reports `checkout_available`. Checkout sends that exact price ID through the authenticated billing route. Prices and pack quantities are not fixed in the plugin. Existing account balances and granted credits remain associated with the account.
 
-<!-- SETTINGS-CURRENT-2026-09-30 -->
-## Current local settings implementation
+## Settings
 
-The local working tree uses persisted **Simple** and **Advanced** modes; new installs default to Simple. Simple shows everyday workflow and account/billing controls; Advanced adds customization and diagnostics. Review-before-apply remains off by default in current source; explicit saved preferences remain in effect.
+Denali provides persisted **Simple** and **Advanced** settings modes; new installs default to Simple. Simple shows everyday workflow and account/billing controls; Advanced adds customization and diagnostics. Review before applying is optional.
 
 Denali sends note-body requests directly to OpenRouter using its existing encrypted Pattern B key manifest. Constance handles account sessions, Paddle offers and checkout, balances, and credits only. Current prices and offer descriptions are loaded from Paddle through Constance; the plugin does not hardcode them.
 
-Simple: review preference, filename style and case, account, balance and purchases. Advanced: new-note automation, untitled filters, subfolders, date placement, separators, bounded input/output lengths, naming options and custom prompt, backups and logs. New installs keep automatic creation, folder moves, console logs and file logs off. Legacy payment-plan, rename-process, reset and delete-folder controls are not exposed.
+Simple settings cover review preference, filename style and account controls. Advanced settings include batch and naming options, subfolders, backups and diagnostics. New installs keep automatic creation, folder moves, and file logs off.
 
-<!-- SETTINGS-CURRENT-2026-09-30:END -->
-
-<!-- BILLING-CURRENT-2026-09-30 -->
-## Current local account and billing behavior
+## Account and billing
 
 Use **Connect** with your email and password. A new account is registered; an existing account is authenticated. New users must follow the emailed verification link and Connect again. Incorrect passwords offer password recovery; passwords are never saved. Paid purchases and free allowances belong to the authenticated account, not a locally entered email or an editable cached balance. Reinstalling does not replenish the same account's allowance.
 
-Constance is the billing authority. Credit units remain app-specific: characters, OCR pages, searches, conversions, repair/protection batches, or captures. Checkout return URLs and cached balances never grant credits. Payment fulfillment comes from the server’s verified Paddle webhook, and balances refresh from authenticated entitlements. Unknown usage or checkout results reuse the persisted operation ID; they must not create a new debit or alternative checkout.
-
-
-<!-- BILLING-CURRENT-2026-09-30:END -->
-
+Constance is the billing authority. Constance manages Denali account sessions, checkout, balances, and credits. Current offers, prices, and descriptions are read from its catalog. Completed renames use the applicable account credit; failed requests do not.
 
 Create useful Markdown filenames from note content with AI-assisted suggestions.
-
 
 ## Features
 
 - Rename the current note or process selected Markdown files and folders.
+
 - Rename automatically by default, or enable Review before applying to edit or approve suggestions.
+
 - Watch requests, elapsed time, and completion status in the live request queue.
+
 - Keep note content and existing YAML frontmatter unchanged.
+
 - Use optional backups and Markdown logs to help recover or troubleshoot.
 
 ## Get started
 
 1. Install and enable Denali AI Renamer from Obsidian Community plugins.
+
 2. Open Settings, then Community plugins, then Denali AI Renamer.
+
 3. Connect your Constance account for billing, then run the Denali rename command.
+
 4. Open a disposable Markdown note and run the Denali rename command.
 
 ## Privacy
@@ -61,7 +59,6 @@ See the [complete user guide](docs/USER_GUIDE.md) for commands, batch renaming, 
 ## Account, billing, and credit feedback
 
 Account and billing controls appear at the top of settings. Select Connect with your email and password; verify the emailed link if requested, then Connect again. The settings page shows the current balance and provides balance refresh, sign-out, and purchase controls. Metered actions show the available balance and report the amount used with the remaining balance when the action completes.
-
 
 ## AI and billing
 
