@@ -1,3 +1,4 @@
+import { renderAccountGuidance } from "./account-guidance";
 import { resumeAccountCheckout } from "./billing-checkout";
 import { Notice, Setting, requestUrl } from "obsidian";
 
@@ -325,6 +326,8 @@ export function addBillingAccountSettings(containerEl: HTMLElement, adapter: Con
   resumeAccountCheckout({ ...adapter, refreshSession: () => refreshBillingSession(adapter.state, adapter.persist) });
   let password = "";
   const section = containerEl.createDiv({ cls: "constance-account-billing-section" });
+
+  renderAccountGuidance(section, { appId: adapter.appId, connected: adapter.state.billingAccountLinked && Boolean(adapter.state.billingAccessToken || adapter.state.billingRefreshToken), defaultAllowance: 10, unit: "credits", workflow: "Open a Markdown note, then run the Denali rename command to generate a filename." });
   section.createEl("h3", { text: "Account and billing" });
   const state = adapter.state as ConstanceAccountState & Record<string, unknown>;
   const numericBalances = Object.entries(state)
@@ -402,5 +405,28 @@ export function addBillingAccountSettings(containerEl: HTMLElement, adapter: Con
     for (const summary of Array.from(containerEl.querySelectorAll('[class*="credit"][class*="summary"], [class*="balance"][class*="summary"]'))) {
       if (!section.contains(summary)) section.appendChild(summary);
     }
+  });
+}
+
+/** A single welcome with an actionable setup link; account guidance stays in settings until connected. */
+export async function showAccountWelcome(plugin: import("obsidian").Plugin, state: ConstanceAccountState, persist: () => Promise<void>): Promise<void> {
+  const openSetup = (): void => {
+    const settings = (plugin.app as unknown as { setting: { open(): void; openTabById(id: string): void } }).setting;
+    settings.open(); settings.openTabById(plugin.manifest.id);
+  };
+  plugin.addCommand({ id: "open-account-setup", name: "Get started: connect your account", callback: openSetup });
+  const saved = state as ConstanceAccountState & { accountWelcomeSeen?: boolean };
+  if (state.billingAccountLinked || saved.accountWelcomeSeen) return;
+  saved.accountWelcomeSeen = true;
+  await persist();
+  plugin.app.workspace.onLayoutReady(() => {
+    if (state.billingAccountLinked) return;
+    const fragment = document.createDocumentFragment();
+    fragment.append("Denali" + ": create an account or sign in, then connect to check your free allowance (default: 10 AI credits once per account). ");
+    const button = document.createElement("button");
+    button.textContent = "Open account setup";
+    button.addEventListener("click", openSetup);
+    fragment.append(button);
+    new Notice(fragment, 12000);
   });
 }

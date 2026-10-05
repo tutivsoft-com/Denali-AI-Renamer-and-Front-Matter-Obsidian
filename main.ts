@@ -1,3 +1,5 @@
+import { consumeAccountUnits } from "./account-credit-client";
+import { showAccountWelcome } from "./constance-account";
 import { resumeAccountCheckout } from "./billing-checkout";
 import { addLivePacks } from "./billing-catalog";
 import { refreshBillingSession } from "./constance-account";
@@ -355,7 +357,7 @@ const DEFAULT_SETTINGS: DenaliSettings = {
   settingsMode: "simple",
     openRouterApiKey: '',
     customPrompt: PROMPT_STYLES.balanced,
-    aiModel: '~deepseek/deepseek-v4-flash-latest',
+    aiModel: '~openai/gpt-luna-latest',
     untitledKeywords: 'Untitled,New Text Document',
     renameOnCreation: false,
     lookForUntitled: false,
@@ -578,6 +580,7 @@ export default class DenaliAIFileRenamer extends Plugin {
         await this.saveSettings();
 
         this.addSettingTab(new DenaliSettingTab(this.app, this));
+    await showAccountWelcome(this, this.settings, () => this.saveSettings());
         this.addCommand({ id: 'show-ai-request-queue', name: 'Show AI request queue', callback: () => this.aiQueue.open() });
 
         this.addCommand({
@@ -749,7 +752,7 @@ export default class DenaliAIFileRenamer extends Plugin {
             });
 
             if (response.status === 200) {
-                const balance = response.json?.data?.credits?.balance;
+                const balance = (response.json?.data?.credits?.total_available ?? response.json?.data?.credits?.balance);
                 if (typeof balance === 'number') {
                     this.settings.purchasedCredits = balance;
                     await this.saveSettings();
@@ -795,6 +798,15 @@ export default class DenaliAIFileRenamer extends Plugin {
         if (!deviceId || amount <= 0) {
             return { outcome: 'error' };
         }
+        if (stableEventId.startsWith("consume_")) {
+            const adapter = {state: this.settings, appId: CONSTANCE_APP_ID, installationId: deviceId, persist: () => this.saveSettings(), syncBalance: async () => {}};
+            const result = await consumeAccountUnits({state: this.settings, appId: CONSTANCE_APP_ID, installationId: deviceId, refreshSession: () => refreshBillingSession(this.settings, () => this.saveSettings())}, stableEventId, amount);
+            if (result.kind === 'ok') {
+                this.settings.availableCredits = result.freeRemaining ?? this.settings.availableCredits;
+                return {outcome: 'success', newPurchasedBalance: result.balance ?? this.settings.purchasedCredits};
+            }
+            return {outcome: result.kind === 'insufficient' ? 'insufficient' : 'error'};
+        }
         const result = await spendAccountCredits({state: this.settings, appId: CONSTANCE_APP_ID, installationId: deviceId, persist: () => this.saveSettings(), syncBalance: async () => {}}, CONSTANCE_APP_ID, deviceId, stableEventId, amount);
         if (result.kind === 'ok') return { outcome: 'success', newPurchasedBalance: result.balance };
         if (result.kind === 'insufficient') return { outcome: 'insufficient' };
@@ -834,11 +846,11 @@ export default class DenaliAIFileRenamer extends Plugin {
             if (response.status < 200 || response.status >= 300) throw new Error(`HTTP ${response.status}`);
             const entitlements = response.json?.data;
             const freeRemaining = Math.max(0, Number(entitlements?.free_usage?.remaining) || 0);
-            const paidBalance = Math.max(0, Number(entitlements?.credits?.balance) || 0);
+            const paidBalance = Math.max(0, Number((entitlements?.credits?.total_available ?? entitlements?.credits?.balance)) || 0);
             settings.availableCredits = freeRemaining;
             settings.purchasedCredits = paidBalance;
             await this.saveSettings();
-            if (freeRemaining >= cost || paidBalance >= cost) return true;
+            if (freeRemaining + paidBalance >= cost) return true;
             new Notice('Denali AI: not enough free or purchased credits. No AI request was sent.', 6000);
             return false;
         } catch {
@@ -1026,25 +1038,6 @@ class FileRenamer {
             return false;
         }
 
-        const freeEventId = generateConstanceEventId();
-        const freeResult = await claimAccountFreeUsage({state: settings, appId: CONSTANCE_APP_ID, installationId: settings.constanceDeviceId, persist: () => this.plugin.saveSettings(), syncBalance: async () => {}}, CONSTANCE_APP_ID, settings.constanceDeviceId, freeEventId, cost);
-        if (freeResult.kind === 'ok') {
-            settings.availableCredits = freeResult.remaining;
-            await this.plugin.saveSettings();
-            new Notice(`Used ${cost} credits. Free credits remaining: ${freeResult.remaining}`, 2500);
-            return true;
-        }
-        if (freeResult.kind === 'auth-required') {
-            clearBillingSession(settings);
-            await this.plugin.saveSettings();
-            new Notice('Denali AI: your billing session expired. Sign in again in Settings.', 6000);
-            return false;
-        }
-        if (freeResult.kind === 'error') {
-            new Notice('Denali AI: the account allowance could not be verified. Try again when Constance is reachable.', 6000);
-            return false;
-        }
-
         const remainder = cost;
 
         await this.plugin.retryPendingSpendEvents();
@@ -1052,7 +1045,7 @@ class FileRenamer {
             new Notice('Denali AI: a previous credit spend is still being reconciled. Try again when the connection is restored.', 5000);
             return false;
         }
-        const stableEventId = generateConstanceEventId();
+        const stableEventId = `consume_${generateConstanceEventId()}`;
         this.plugin.settings.pendingSpendEvents.push({ eventId: stableEventId, amount: remainder });
         await this.plugin.saveSettings();
         const spendResult = await this.plugin.spendConstanceCredits(remainder, stableEventId);
@@ -1241,7 +1234,7 @@ class FileRenamer {
             'Example: {"filename":"Example File Name"}',
         ].join('\n');
         const requestBody = {
-            model: aiModel,
+            model: '~openai/gpt-luna-latest',
             messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: textToSend }],
             temperature: 0.01,
             response_format: { type: 'json_object' },
@@ -1622,7 +1615,7 @@ class DenaliSettingTab extends PluginSettingTab {
         choice('characterReplacement', 'Word separator', 'Used when converting spaces in filenames.', { '-': 'Hyphen (-)', '_': 'Underscore (_)', ' ': 'Space' });
 
         new Setting(containerEl).setName('AI request').setHeading();
-        choice('aiModel', 'AI model', 'The managed default is recommended. Another model can change style and response time.', { '~deepseek/deepseek-v4-flash-latest': 'Recommended (managed default)', 'openai/gpt-5-mini': 'GPT-5 Mini' });
+        choice('aiModel', 'AI model', 'The managed default is recommended. Another model can change style and response time.', { '~openai/gpt-luna-latest': 'Recommended (managed default)', 'openai/gpt-5-mini': 'GPT-5 Mini' });
         const limits = getPlanLimits(state.userPlan);
         const inputChoices: Record<string,string> = {};
         for (const n of [1000, 2000, 4000, 8000, limits.maxInputLength]) if (n <= limits.maxInputLength) inputChoices[n] = `${n.toLocaleString()} characters`;

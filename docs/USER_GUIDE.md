@@ -46,7 +46,7 @@ If the suggested filename already matches the note's current path, Denali skips 
 
 Denali sends note body text directly to OpenRouter and removes YAML frontmatter before the request. Note content leaves the vault, so do not process confidential notes unless you accept the provider's handling. A failed AI request leaves the note unchanged and uses no credit; retry when the provider is available. Denali changes the note's path only. It does not write to the note file contents or frontmatter.
 
-## Workflow defaults (v5.0.34)
+## Workflow defaults
 
 Automatic rename is the default. Review before applying is optional for individual files and folder batches. Account authorization and an eligible balance are checked before note text is sent to the AI provider.
 
