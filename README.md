@@ -1,84 +1,29 @@
 # Denali AI Renamer
 
-Version: 5.0.39. Validated for publication; release pending.
+Generate filenames from Markdown note content, with configured naming styles and optional folder placement.
 
-## Purchases
+Current version: **5.0.51**.
 
-Purchase settings load the app's current offer configuration and Paddle prices from Constance. Offer quantities use the app's native billing unit from that configuration; displayed amounts and descriptions come from the current provider price. The client matches offers by exact configured price ID and enables purchase only when Constance reports `checkout_available`. Checkout sends that exact price ID through the authenticated billing route. Prices and pack quantities are not fixed in the plugin. Existing account balances and granted credits remain associated with the account.
+## First use
 
-## Settings
+Enable the plugin and use its settings page. Simple is the default settings mode; Advanced exposes optional configuration. Open a Markdown note and run Rename current note. Use Open renaming options for current note for the interactive workflow.
 
-Denali provides persisted **Simple** and **Advanced** settings modes; new installs default to Simple. Simple shows everyday workflow and account/billing controls; Advanced adds customization and diagnostics. Review before applying is optional.
+The current note supplies the AI naming input. Automatic naming is the default; optional review or interactive naming allows editing a proposed name. Case, character replacement, timestamp, backup and subfolder preferences control the local result. Saved automatic-rename preferences are retained.
 
-Denali sends note-body requests directly to OpenRouter using its existing encrypted Pattern B key manifest. Constance handles account sessions, Paddle offers and checkout, balances, and credits only. Current prices and offer descriptions are loaded from Paddle through Constance; the plugin does not hardcode them.
+## Account and processing
 
-Simple settings cover review preference, filename style and account controls. Advanced settings include batch and naming options, subfolders, backups and diagnostics. New installs keep automatic creation, folder moves, and file logs off.
+AI requests go directly to OpenRouter using the fixed request model `~openai/gpt-luna-latest`. The existing managed-key resolver supplies the connection; legacy personal-key/model preferences do not override it. Constance handles account and billing operations.
 
-## Account and billing
+One credit is consumed before an eligible rename is applied. Provider failure, cancellation and a no-op do not consume a new credit; a local rename failure can occur after usage consumption. Pending events retain their identity for recovery.
 
-Use **Connect** with your email and password. A new account is registered; an existing account is authenticated. New users must follow the emailed verification link and Connect again. Incorrect passwords offer password recovery; passwords are never saved. Paid purchases and free allowances belong to the authenticated account, not a locally entered email or an editable cached balance. Reinstalling does not replenish the same account's allowance.
+Connect the existing Constance account in settings; registration can require email verification before signing in again. Billing account passwords are sent for authentication and are not persisted. Access/refresh session data and a stable installation identity are saved locally. Account free usage and purchased balance are determined by Constance; cached values and checkout return URLs do not create entitlement. Catalog displays current formatted names, prices, availability and exact price IDs. Unknown usage and checkout results retain their original identities for recovery.
 
-Constance is the billing authority. Constance manages Denali account sessions, checkout, balances, and credits. Current offers, prices, and descriptions are read from its catalog. Completed renames use the applicable account credit; failed requests do not.
+## Diagnostics
 
-Create useful Markdown filenames from note content with AI-assisted suggestions.
+Help is available in settings and through Open documentation. Open plugin settings and Copy full debug log are command-palette fallbacks. Debug logging defaults off for a new installation; failures and full Error objects/stacks still appear in the local developer console. Timed information is enabled by the debug preference. The copyable diagnostic buffer keeps at most 1,000 summarized events and excludes raw error text, stacks, note text, paths and credentials. Full console exceptions can contain whatever the failed operation placed in its error. Logs are not uploaded automatically.
 
-## Features
+## Documentation
 
-- Rename the current note or process selected Markdown files and folders.
+- [User guide](docs/USER_GUIDE.md)
 
-- Rename automatically by default, or enable Review before applying to edit or approve suggestions.
-
-- Watch requests, elapsed time, and completion status in the live request queue.
-
-- Keep note content and existing YAML frontmatter unchanged.
-
-- Use optional backups and Markdown logs to help recover or troubleshoot.
-
-## Get started
-
-1. Install and enable Denali AI Renamer from Obsidian Community plugins.
-
-2. Open Settings, then Community plugins, then Denali AI Renamer.
-
-3. Connect your Constance account for billing, then run the Denali rename command.
-
-4. Open a disposable Markdown note and run the Denali rename command.
-
-## Privacy
-
-Denali sends Markdown note body text directly to OpenRouter to generate filename suggestions, using its existing encrypted Pattern B key manifest. Existing YAML frontmatter is removed from the AI input. Note text leaves the vault, so do not process confidential notes unless you accept the provider's handling. Renaming changes the file path only; Denali does not change note contents or frontmatter. Constance handles billing and credits only.
-
-A Constance account is required for metered filename generation; connect and manage credits in plugin settings.
-
-## Compatibility
-
-Denali requires Obsidian 1.5.0 or later.
-
-See the [complete user guide](docs/USER_GUIDE.md) for commands, batch renaming, settings, backups, logs, and troubleshooting.
-
-## Account, billing, and credit feedback
-
-Account and billing controls appear at the top of settings. Select Connect with your email and password; verify the emailed link if requested, then Connect again. The settings page shows the current balance and provides balance refresh, sign-out, and purchase controls. Metered actions show the available balance and report the amount used with the remaining balance when the action completes.
-
-## AI and billing
-
-AI requests go directly to OpenRouter. A failed request leaves the note unchanged and does not charge a credit; a user can retry. Constance handles account sessions, Paddle checkout, balance, and credit accounting. Current offer IDs, amounts, and descriptions are read from the live catalog.
-
-## Manual installation
-
-Download `main.js`, `manifest.json`, and `styles.css` from the matching published release and place them in `.obsidian/plugins/denali-ai-file-renamer-front-matter/`, then enable the plugin in Obsidian.
-
-
-### Getting started with your account
-
-Open a Markdown note, then run the Denali rename command to generate a filename. Create an account or sign in in the plugin settings, verify your email if requested, then connect. Free AI usage requires a registered, connected account to help prevent abuse. The default lifetime allowance is 10 AI credits per account as our thank-you for trying the app; settings check the current policy and account balance. You can add credits at affordable prices once you are ready; the current offers and prices load in settings. Setup guidance stays visible until connected, and the welcome appears only once.
-
-## Account lifetime allowance
-
-10 credits lifetime per account. Rename credits for completed operations. Existing allowance consumption survives upgrades and reinstalls; lifetime allowances do not refill daily. Free units are used first and purchased units cover the remainder of the same operation. Native writes retain reserve, write, verify and finalize safeguards. Uncertain results retain the original event for recovery. The app retains its existing review and result-authorization workflow.
-
-The allowance belongs to the account and does not reset daily or after reinstalling. Free units are consumed first; purchased units cover the remainder. Current prices and available offers load from Constance in settings.
-
-AI requests use the fixed OpenRouter model `~openai/gpt-luna-latest`. Legacy saved model preferences do not change the request model.
-
-AI requests use the fixed OpenRouter model `~openai/gpt-luna-latest`. Legacy saved model preferences do not change the request model.
+License terms are in LICENSE.

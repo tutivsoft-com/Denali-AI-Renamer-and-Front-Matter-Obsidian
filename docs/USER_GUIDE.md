@@ -1,55 +1,30 @@
-# Denali AI Renamer — user guide
+# Denali AI Renamer user guide
 
-## What Denali does
+Current version: **5.0.51**.
 
-Denali suggests filenames from Markdown note bodies. Automatic renaming is the default. Enable Review before applying to review and edit suggestions first. It does not generate or edit frontmatter, properties, aliases, tags, or note-body text. Existing YAML frontmatter is excluded from the AI input.
+## Start
 
-## Get started
+1. Enable the plugin in Obsidian Community plugins.
+2. Open its settings and configure the destination or operation as appropriate. Simple is the default; Advanced is optional.
+3. Connect the account when the chosen operation needs account authorization.
+4. Open a Markdown note and run Rename current note. Use Open renaming options for current note for the interactive workflow.
 
-1. Install and enable **Denali AI Renamer**.
+The current note supplies the AI naming input. Automatic naming is the default; optional review or interactive naming allows editing a proposed name. Case, character replacement, timestamp, backup and subfolder preferences control the local result. Saved automatic-rename preferences are retained.
 
-2. Open **Settings → Community plugins → Denali AI Renamer**.
+## Account and usage
 
-3. Connect your Constance account for billing, then run the Denali rename command. Denali sends note-body requests directly to OpenRouter using its existing encrypted Pattern B key manifest. Constance handles accounts, Paddle checkout, balances, and credits only.
+Connect the existing Constance account in settings; registration can require email verification before signing in again. Billing account passwords are sent for authentication and are not persisted. Access/refresh session data and a stable installation identity are saved locally. Account free usage and purchased balance are determined by Constance; cached values and checkout return URLs do not create entitlement. Catalog displays current formatted names, prices, availability and exact price IDs. Unknown usage and checkout results retain their original identities for recovery.
 
-## Rename one note
+One credit is consumed before an eligible rename is applied. Provider failure, cancellation and a no-op do not consume a new credit; a local rename failure can occur after usage consumption. Pending events retain their identity for recovery.
 
-Open a Markdown note and choose **Denali AI Renamer: Rename current note** from the command palette (or use **Denali AI: Rename note** in the file menu). Denali reads the note body, asks OpenRouter for a filename, and applies it automatically by default. Enable Review before applying to edit or approve suggestions first.
+## Troubleshooting
 
-Denali opens its AI request queue while the suggestion is being generated. The queue shows the submitted note excerpt, elapsed seconds, and completion status. Requests from overlapping actions run one at a time; you can clear waiting requests without stopping the active request. Reopen the queue from plugin Settings or the command palette.
+Help is available in settings and through Open documentation. Open plugin settings and Copy full debug log are command-palette fallbacks. Debug logging defaults off for a new installation; failures and full Error objects/stacks still appear in the local developer console. Timed information is enabled by the debug preference. The copyable diagnostic buffer keeps at most 1,000 summarized events and excludes raw error text, stacks, note text, paths and credentials. Full console exceptions can contain whatever the failed operation placed in its error. Logs are not uploaded automatically.
 
-Example body:
+Use the console's plugin-name prefix and version to identify the failing stage. A catchable failure stops its affected action; retry after resolving the underlying problem. Historical build/install results apply to their recorded versions.
 
-```markdown
-# Interview preparation
+## Removal
 
-Questions for the Acme DevOps interview on 12 June, including Kubernetes and incident response.
-```
+Removing a plugin does not undo earlier file edits or recover an encryption password. Preserve any originals, backups, queues and recovery data you need before removing it. Account purchases remain associated with the account.
 
-Possible filename:
-
-```text
-acme-devops-interview-preparation.md
-```
-
-## Rename a folder
-
-Right-click a folder and choose **Denali AI: Batch rename folder**. Enable Review before applying for per-file approval, then watch progress. Denali avoids filename collisions by adding a suffix when necessary. If auto-subfolder is enabled, Denali can create a safe relative destination folder suggested by the model; absolute paths and `..` traversal are rejected.
-
-## Backups, logs, and credits
-
-Enable backups before large batch operations. Denali can keep Markdown logs for troubleshooting. Each completed file rename uses one credit under the current Constance plan; check the settings page for the balance and purchase options.
-
-If the suggested filename already matches the note's current path, Denali skips the rename without using a credit.
-
-## Privacy and limitations
-
-Denali sends note body text directly to OpenRouter and removes YAML frontmatter before the request. Note content leaves the vault, so do not process confidential notes unless you accept the provider's handling. A failed AI request leaves the note unchanged and uses no credit; retry when the provider is available. Denali changes the note's path only. It does not write to the note file contents or frontmatter.
-
-## Workflow defaults
-
-Automatic rename is the default. Review before applying is optional for individual files and folder batches. Account authorization and an eligible balance are checked before note text is sent to the AI provider.
-
-## Billing account sessions
-
-Create an account, follow the email confirmation link, then sign in. The plugin saves and rotates account session tokens, never your password. Sign out clears the saved session and revokes its refresh token. Use **Forgot password?** to open the central reset page. Credit purchases require sign-in and are linked to the account and this installation.
+See plugin settings for implemented commands, settings defaults and privacy controls.
