@@ -1,4 +1,9 @@
 <!-- SETTINGS-CURRENT-2026-09-30 -->
+
+<!-- DOC-BUNDLE-SCOPE -->
+> This guide describes the local bundled revision **5.0.32**. Its code may precede the maintained development source. Use the account entitlement and purchase screen for current server limits and offers; fixed historical amounts below do not establish current offers. This documentation review did not publish or update the bundle.
+<!-- DOC-BUNDLE-SCOPE:END -->
+
 ## Current local settings implementation
 
 The local working tree uses persisted **Simple** and **Advanced** modes; new installs default to Simple. Simple shows everyday workflow and account/billing controls; Advanced adds customization and diagnostics. Review-before-apply remains off by default in current source; explicit saved preferences remain in effect.

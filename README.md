@@ -1,5 +1,9 @@
 # Denali AI Renamer
 
+<!-- DOC-BUNDLE-SCOPE -->
+> This guide describes the local bundled revision **5.0.32**. Its code may precede the maintained development source. Use the account entitlement and purchase screen for current server limits and offers; fixed historical amounts below do not establish current offers. This documentation review did not publish or update the bundle.
+<!-- DOC-BUNDLE-SCOPE:END -->
+
 ## Current purchase behavior
 
 Purchase settings load the app's current offer configuration and Paddle prices from Constance. Offer quantities use the app's native billing unit from that configuration; displayed amounts and descriptions come from the current provider price. The client matches offers by exact configured price ID and enables purchase only when Constance reports `checkout_available`. Checkout sends that exact price ID through the authenticated billing route. Prices and pack quantities are not fixed in the plugin. Existing account balances and granted credits remain associated with the account.
@@ -24,7 +28,7 @@ Use **Connect** with your email and password. A new account is registered; an ex
 Constance is the billing authority. Credit units remain app-specific: characters, OCR pages, searches, conversions, repair/protection batches, or captures. Checkout return URLs and cached balances never grant credits. Payment fulfillment comes from the server’s verified Paddle webhook, and balances refresh from authenticated entitlements. Unknown usage or checkout results reuse the persisted operation ID; they must not create a new debit or alternative checkout.
 
 
-The [historical 2026-09-30 billing review](Archive/historical-billing-review/BILLING_REVIEW_2026-09-30.md) records an intermediate implementation and is not current guidance. This section describes the current local source; older release walkthroughs below apply to their dated artifacts. Constance must support `/api/v1/auth/connect` before these clients are released.
+The historical 2026-09-30 billing review (not included in this bundled checkout) records an intermediate implementation and is not current guidance. This section describes the current local source; older release walkthroughs below apply to their dated artifacts. Constance must support `/api/v1/auth/connect` before these clients are released.
 <!-- BILLING-CURRENT-2026-09-30:END -->
 
 
