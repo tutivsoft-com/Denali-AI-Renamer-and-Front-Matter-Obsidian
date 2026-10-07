@@ -1,29 +1,65 @@
 # Denali AI Renamer
 
-Generate filenames from Markdown note content, with configured naming styles and optional folder placement.
+Give Obsidian notes meaningful filenames based on their content.
 
-Current version: **5.0.51**.
+**Best for:** Obsidian users maintaining readable note libraries.
 
-## First use
+## Top 10 features
 
-Enable the plugin and use its settings page. Simple is the default settings mode; Advanced exposes optional configuration. Open a Markdown note and run Rename current note. Use Open renaming options for current note for the interactive workflow.
+1. Name notes from their content.
+2. Rename the current note.
+3. Process supported file and folder selections.
+4. Edit an interactive suggestion.
+5. Enable optional review.
+6. Choose naming case.
+7. Sanitize unsupported filename characters.
+8. Include timestamps.
+9. Keep optional backups.
+10. Place notes in configured subfolders.
 
-The current note supplies the AI naming input. Automatic naming is the default; optional review or interactive naming allows editing a proposed name. Case, character replacement, timestamp, backup and subfolder preferences control the local result. Saved automatic-rename preferences are retained.
+## Example workflow
 
-## Account and processing
+**Before:** Untitled 17.md contains a useful meeting summary.
 
-AI requests go directly to OpenRouter using the fixed request model `~openai/gpt-luna-latest`. The existing managed-key resolver supplies the connection; legacy personal-key/model preferences do not override it. Constance handles account and billing operations.
+**After:** Generate and review a descriptive filename such as Client Launch Meeting.md, then apply it.
 
-One credit is consumed before an eligible rename is applied. Provider failure, cancellation and a no-op do not consume a new credit; a local rename failure can occur after usage consumption. Pending events retain their identity for recovery.
+## Pricing
 
-Connect the existing Constance account in settings; registration can require email verification before signing in again. Billing account passwords are sent for authentication and are not persisted. Access/refresh session data and a stable installation identity are saved locally. Account free usage and purchased balance are determined by Constance; cached values and checkout return URLs do not create entitlement. Catalog displays current formatted names, prices, availability and exact price IDs. Unknown usage and checkout results retain their original identities for recovery.
+A connected account includes 10 rename credits as a one-time lifetime allowance. Previous use counts toward that allowance.
 
-## Diagnostics
+| Pack | USD price | Included units |
+|---|---:|---:|
+| Starter | $2.00 | 50 credits |
+| Standard | $4.00 | 150 credits |
+| Pro | $8.00 | 450 credits |
+| Ultimate | $14.00 | 1,200 credits |
 
-Help is available in settings and through Open documentation. Open plugin settings and Copy full debug log are command-palette fallbacks. Debug logging defaults off for a new installation; failures and full Error objects/stacks still appear in the local developer console. Timed information is enabled by the debug preference. The copyable diagnostic buffer keeps at most 1,000 summarized events and excludes raw error text, stacks, note text, paths and credentials. Full console exceptions can contain whatever the failed operation placed in its error. Logs are not uploaded automatically.
+Packs are one-time purchases. Purchased units do not expire. Final tax and local currency are shown at checkout.
 
-## Documentation
+## What to know
 
-- [User guide](docs/USER_GUIDE.md)
+AI naming sends note text to an online service. Naming preferences and optional backups are handled within the vault.
 
-License terms are in LICENSE.
+---
+
+## Discover Denali AI Renamer
+
+Whether you need to name notes from their content or rename the current note, Denali AI Renamer provides a focused workflow for Obsidian users maintaining readable note libraries.
+
+### Common questions
+
+**What can I use it for?**
+
+You can name notes from their content, edit an interactive suggestion or enable optional review.
+
+**How do I get started?**
+
+Enable the plugin in Obsidian, open its settings and choose the action that fits your note. Connect your account for metered actions; the settings page shows your remaining allowance and available packs.
+
+### Search description
+
+Give Obsidian notes meaningful filenames based on their content. Designed for Obsidian users maintaining readable note libraries.
+
+### Related topics
+
+Obsidian AI note renamer, content-based filenames, rename Markdown notes, note organization.
