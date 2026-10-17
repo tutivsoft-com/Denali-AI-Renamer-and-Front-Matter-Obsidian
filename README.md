@@ -64,12 +64,8 @@ Give Obsidian notes meaningful filenames based on their content. Designed for Ob
 
 Obsidian AI note renamer, content-based filenames, rename Markdown notes, note organization.
 
-<!-- PORTFOLIO-METADATA:START -->
-## Repository metadata
+## Release
 
-Current source version: **5.0.53** (2026-10-16).
+Version 5.0.57 is prepared for manual validation and publication.
 
-[Architecture](architecture.md) · [AI provenance](ai_model.md) · [History](HISTORY.md) · [Contributors](CONTRIBUTORS.md) · [Manifest](rahul_manifest.yaml).
-
-This maintenance update synchronizes source version metadata and excludes generated junk. Build, runtime, store and deployment verification are separate.
-<!-- PORTFOLIO-METADATA:END -->
+Basic app usage events are sent to https://atcdn.cyou without note contents. Account and purchase operations use Constance.

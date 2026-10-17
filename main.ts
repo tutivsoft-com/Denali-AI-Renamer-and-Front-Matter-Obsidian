@@ -1,3 +1,4 @@
+import { initializeMatomo } from "./matomo-plugin";
 import { selectedFiles, markdownFile, registerSelectionAction } from "./selection-scope";
 import { diagnostics } from "./diagnostics";
 import { consumeAccountUnits } from "./account-credit-client";
@@ -611,6 +612,7 @@ diagnostics.failure("main.caught_extra_4", error);
 }
 
     async onload() {
+    initializeMatomo(this);
 let diagnosticStartupEnd: () => void = () => {};
 
 const diagnosticEnd10 = diagnostics?.start?.("main.onload") ?? (() => {});

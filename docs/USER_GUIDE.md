@@ -1,6 +1,6 @@
 # Denali AI Renamer user guide
 
-Current version: **5.0.52**.
+Current version: **5.0.57**.
 
 ## Start
 
