@@ -66,6 +66,6 @@ Obsidian AI note renamer, content-based filenames, rename Markdown notes, note o
 
 ## Release
 
-Version 5.0.57 is prepared for manual validation and publication.
+Version 5.0.57 was published on 17 October 2026. Its final Obsidian Community audit completed successfully. [Release assets](https://github.com/tutivsoft-com/Denali-AI-Renamer-and-Front-Matter-Obsidian/releases/tag/5.0.57).
 
 Basic app usage events are sent to https://atcdn.cyou without note contents. Account and purchase operations use Constance.
