@@ -1,71 +1,29 @@
 # Denali AI Renamer
 
-Give Obsidian notes meaningful filenames based on their content.
+Rename Markdown notes from their content with the existing automatic or optional review workflow.
 
-**Best for:** Obsidian users maintaining readable note libraries.
+## Use
 
-## Top 10 features
+Install or update the plugin through Obsidian Community plugins, enable it, and open its settings. Use the existing plugin commands for the selected note, text or files. Existing preferences and local recovery records are retained.
 
-1. Name notes from their content.
-2. Rename the current note.
-3. Process supported file and folder selections.
-4. Edit an interactive suggestion.
-5. Enable optional review.
-6. Choose naming case.
-7. Sanitize unsupported filename characters.
-8. Include timestamps.
-9. Keep optional backups.
-10. Place notes in configured subfolders.
+## Account and billing
 
-## Example workflow
+Connect your Constance account in plugin settings. If you create an account, confirm the email link and then connect again. Authentication, current offers, free allowance, purchased balance and payment confirmation use the Constance v2 service at https://app.tutivsoft.com.
 
-**Before:** Untitled 17.md contains a useful meeting summary.
+Current paid names, descriptions, prices, currencies and included units come from the payment provider through Constance. Refresh the displayed offers before buying. If current pricing cannot be verified, buying is unavailable. Only canonical payment fulfillment grants credits. A completed purchase stays saved until the refreshed balance is saved and acknowledged. Pending requests retain their original identity after a retry or restart. Use Check payment or Cancel current purchase in the billing section when needed.
 
-**After:** Generate and review a descriptive filename such as Client Launch Meeting.md, then apply it.
+New purchases use Paddle and USD. Existing historical purchases retain their original provider. No payment credentials are bundled in the plugin.
 
-## Pricing
+## Privacy and recovery
 
-A connected account includes 10 rename credits as a one-time lifetime allowance. Previous use counts toward that allowance.
+Account requests send authentication and billing information to Constance. Passwords are not saved. Session credentials and recovery state are kept in local plugin settings. Billing requests do not contain note or image contents. Requested AI actions send the selected input directly to the existing AI service. Basic app usage events use the existing analytics service without note contents. Diagnostic logs stay local unless you copy and share them.
 
-| Pack | USD price | Included units |
-|---|---:|---:|
-| Starter | $2.00 | 50 credits |
-| Standard | $4.00 | 150 credits |
-| Pro | $8.00 | 450 credits |
-| Ultimate | $14.00 | 1,200 credits |
-
-Packs are one-time purchases. Purchased units do not expire. Final tax and local currency are shown at checkout.
-
-## What to know
-
-AI naming sends note text to an online service. Naming preferences and optional backups are handled within the vault.
-
----
-
-## Discover Denali AI Renamer
-
-Whether you need to name notes from their content or rename the current note, Denali AI Renamer provides a focused workflow for Obsidian users maintaining readable note libraries.
-
-### Common questions
-
-**What can I use it for?**
-
-You can name notes from their content, edit an interactive suggestion or enable optional review.
-
-**How do I get started?**
-
-Enable the plugin in Obsidian, open its settings and choose the action that fits your note. Connect your account for metered actions; the settings page shows your remaining allowance and available packs.
-
-### Search description
-
-Give Obsidian notes meaningful filenames based on their content. Designed for Obsidian users maintaining readable note libraries.
-
-### Related topics
-
-Obsidian AI note renamer, content-based filenames, rename Markdown notes, note organization.
+Uncertain older billing records are retained and are never replayed as new v2 charges. Connect the original account and contact support if an earlier operation needs recovery.
 
 ## Release
 
-Version 5.0.57 was published on 17 October 2026. Its final Obsidian Community audit completed successfully. [Release assets](https://github.com/tutivsoft-com/Denali-AI-Renamer-and-Front-Matter-Obsidian/releases/tag/5.0.57).
+Version 5.0.59 is prepared for the manual Community publication checks. A source push alone does not publish a plugin update. Installable updates use a matching version tag and the three assets main.js, manifest.json and styles.css.
 
-Basic app usage events are sent to https://atcdn.cyou without note contents. Account and purchase operations use Constance.
+## Support
+
+Use the plugin's Help or Open documentation command and the support links in its manifest. For a billing problem, retain the original purchase or operation identity and use the account portal. Do not share passwords or session tokens.

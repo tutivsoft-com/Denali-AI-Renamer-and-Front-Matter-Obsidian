@@ -1,3 +1,4 @@
+import {syncEntitlements} from "./constance-v2";
 import { initializeMatomo } from "./matomo-plugin";
 import { selectedFiles, markdownFile, registerSelectionAction } from "./selection-scope";
 import { diagnostics } from "./diagnostics";
@@ -219,7 +220,7 @@ function generateConstanceDeviceId(): string {
 function generateConstanceEventId(): string {
     const bytes = new Uint8Array(12);
     crypto.getRandomValues(bytes);
-    return `evt_${Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join("")}`;
+    return `v2consume_${Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join("")}`;
 }
 
 // --- END CONSTANCE ---
@@ -866,56 +867,7 @@ try {
      * @param showNotice Whether to surface a user-visible Notice with the result (used by the manual "Refresh balance" button).
      */
     async syncPurchasedCreditsFromConstance(showNotice: boolean = false): Promise<void> {
-const diagnosticEnd18 = diagnostics?.start?.("main.syncPurchasedCreditsFromConstance") ?? (() => {});
-try {
-
-        resumeAccountCheckout({ state: this.settings, appId: CONSTANCE_APP_ID, installationId: this.settings.constanceDeviceId,
-          persist: () => this.saveSettings(), syncBalance: () => this.syncPurchasedCreditsFromConstance(), refreshSession: () => refreshBillingSession(this.settings, () => this.saveSettings()) });
-
-        const deviceId = this.settings.constanceDeviceId;
-        const token = await activeBillingToken({state: this.settings, appId: CONSTANCE_APP_ID, installationId: deviceId, persist: () => this.saveSettings(), syncBalance: async () => {}});
-        if (!deviceId || !token) {
-            if (showNotice) throw new Error('Connect your account before refreshing credits.');
-            return;
-        }
-        try {
-            const response = await billingRequest({state: this.settings, appId: CONSTANCE_APP_ID, installationId: deviceId, persist: () => this.saveSettings(), syncBalance: async () => {}}, {
-                url: `${CONSTANCE_BASE_URL}/api/v1/billing/entitlements/me?${new URLSearchParams({ app_id: CONSTANCE_APP_ID, installation_id: deviceId }).toString()}`,
-                method: 'GET',
-                headers: { Authorization: `Bearer ${token}` },
-                throw: false,
-            });
-
-            if (response.status === 200) {
-                const balance = (response.json?.data?.credits?.total_available ?? response.json?.data?.credits?.balance);
-                const free = response.json?.data?.free_usage?.remaining;
-                if (!Number.isFinite(balance) || balance < 0 || !Number.isFinite(free) || free < 0) {
-                    throw new Error('Your balance could not be updated. Refresh it and try again.');
-                }
-                if (typeof balance === 'number') {
-                    this.settings.availableCredits = free;
-                    this.settings.purchasedCredits = balance;
-                    await this.saveSettings();
-                    this.refreshBillingCredits?.();
-                }
-                if (showNotice) {
-                    new Notice(`Denali AI: Balance refreshed. ${this.settings.availableCredits + this.settings.purchasedCredits} credits (${this.settings.availableCredits} free + ${this.settings.purchasedCredits} purchased).`, 4000);
-                }
-            } else {
-                diagnostics?.legacy?.("warn", "main.operation");
-                if (showNotice) {
-                    new Notice(`Denali AI: Could not refresh balance (status ${response.status}). Please try again later.`, 5000);
-                }
-            }
-        } catch (error) {
-diagnostics.failure("main.caught_extra_5", error);
-            diagnostics?.legacy?.("error", "main.denali_ai_constance_entitlement_sync_request_failed_");
-            if (showNotice) {
-                new Notice('Denali AI: Could not reach the billing server to refresh balance.', 5000);
-            }
-        }
-
-} catch (diagnosticError18) { diagnostics?.failure?.("main.syncPurchasedCreditsFromConstance", diagnosticError18); throw diagnosticError18; } finally { diagnosticEnd18(); }
+await syncEntitlements(this.settings,()=>this.saveSettings());this.refreshBillingCredits?.();
 }
 
     /**
@@ -949,7 +901,7 @@ try {
         if (!deviceId || amount <= 0) {
             return { outcome: 'error' };
         }
-        if (stableEventId.startsWith("consume_")) {
+        if (stableEventId.startsWith("v2consume_")) {
             const adapter = {state: this.settings, appId: CONSTANCE_APP_ID, installationId: deviceId, persist: () => this.saveSettings(), syncBalance: async () => {}};
             const result = await consumeAccountUnits({state: this.settings, appId: CONSTANCE_APP_ID, installationId: deviceId, refreshSession: () => refreshBillingSession(this.settings, () => this.saveSettings())}, stableEventId, amount);
             if (result.kind === 'ok') {
@@ -988,7 +940,7 @@ try {
         }
         try {
             const response = await billingRequest({state: settings, appId: CONSTANCE_APP_ID, installationId: settings.constanceDeviceId, persist: () => this.saveSettings(), syncBalance: async () => {}}, {
-                url: `${CONSTANCE_BASE_URL}/api/v1/billing/entitlements/me?${new URLSearchParams({ app_id: CONSTANCE_APP_ID, installation_id: settings.constanceDeviceId }).toString()}`,
+                url: `${CONSTANCE_BASE_URL}/api/v2/billing/entitlements/me?${new URLSearchParams({ app_id: CONSTANCE_APP_ID, installation_id: settings.constanceDeviceId }).toString()}`,
                 method: 'GET',
                 headers: { Authorization: `Bearer ${token}` },
                 throw: false,
@@ -1196,7 +1148,7 @@ try {
             new Notice('Denali AI: a previous charge is still being confirmed. Try again when the connection is restored.', 5000);
             return false;
         }
-        const stableEventId = `consume_${generateConstanceEventId()}`;
+        const stableEventId = `v2consume_${generateConstanceEventId()}`;
         this.plugin.settings.pendingSpendEvents.push({ eventId: stableEventId, amount: remainder });
         await this.plugin.saveSettings();
         const spendResult = await this.plugin.spendConstanceCredits(remainder, stableEventId);
@@ -1209,8 +1161,8 @@ try {
             return false;
         }
 
-        if (spendResult.outcome === 'success' && typeof spendResult.newPurchasedBalance === 'number') {
-            settings.purchasedCredits = spendResult.newPurchasedBalance;
+        if (spendResult.outcome === 'success') {
+            if (typeof spendResult.newPurchasedBalance === "number") settings.purchasedCredits = spendResult.newPurchasedBalance;
             this.plugin.settings.pendingSpendEvents = this.plugin.settings.pendingSpendEvents.filter(item => item.eventId !== stableEventId);
         } else {
             new Notice('Denali AI: the charge could not be confirmed. Check your connection and try again.', 6000);
