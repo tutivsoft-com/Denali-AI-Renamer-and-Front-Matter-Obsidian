@@ -579,6 +579,8 @@ export default class DenaliAIFileRenamer extends Plugin {
     aiQueue!: AiRequestQueue;
     renameModal: DenaliAIOptionsModal | null = null;
 
+    lastRenameDetails: string[] = [];
+
     public static readonly DENALI_FOLDER = 'Denali AI';
     public static readonly BACKUP_SUBFOLDER = `${DenaliAIFileRenamer.DENALI_FOLDER}/Backups`;
     public static readonly LOGS_SUBFOLDER = `${DenaliAIFileRenamer.DENALI_FOLDER}/Logs`;
@@ -635,11 +637,10 @@ diagnosticStartupEnd = diagnostics?.start?.("startup.initialize") ?? (() => {});
         // Fire-and-forget: does not block plugin startup, and errors are handled internally.
         this.settings.pendingSpendEvents = Array.isArray(this.settings.pendingSpendEvents) ? this.settings.pendingSpendEvents.filter(item => item && typeof item.eventId === 'string' && Number.isInteger(item.amount) && item.amount > 0) : [];
         await this.saveSettings();
-        void diagnostics.guard("main.background_5", () => (this.syncPurchasedCreditsFromConstance().then(() => this.retryPendingSpendEvents())));
+        if (this.settings.billingAccountLinked) void diagnostics.guard("main.background_5", () => (this.syncPurchasedCreditsFromConstance().then(() => this.retryPendingSpendEvents())));
         // --- END CONSTANCE ---
 
-        // Set the backup folder path to the new structure
-        this.settings.backupFolder = DenaliAIFileRenamer.BACKUP_SUBFOLDER;
+        // Keep the saved vault-relative backup destination.
 
         // Migrate away from the reinstallable local starter grant. Constance now
         // owns the account-scoped lifetime allowance and returns the remaining value.
@@ -659,6 +660,13 @@ diagnosticStartupEnd = diagnostics?.start?.("startup.initialize") ?? (() => {});
         this.addSettingTab(new DenaliSettingTab(this.app, this));
         this.support.showWelcome();
     await showAccountWelcome(this, this.settings, () => this.saveSettings());
+        this.addCommand({ id: 'show-last-rename-result', name: 'Show last rename result', callback: () => {
+            const modal = new Modal(this.app);
+            modal.contentEl.createEl('h2', { text: 'Last rename result' });
+            for (const line of this.lastRenameDetails.length ? this.lastRenameDetails : ['No rename result in this session.']) modal.contentEl.createEl('p', { text: line });
+            modal.contentEl.createEl('p', { text: `Version ${this.manifest.version}` });
+            modal.open();
+        } });
         this.addCommand({ id: 'show-ai-request-queue', name: 'Show AI request queue', callback: () => this.aiQueue.open() });
 
         this.addCommand({
@@ -973,6 +981,8 @@ diagnostics.failure("main.caught_14", caughtError13);
 
 }
 
+type RenameOutcome = 'renamed' | 'unchanged' | 'skipped' | 'cancelled' | 'failed';
+
 class FileRenamer {
     app: App;
     plugin: DenaliAIFileRenamer;
@@ -1033,6 +1043,7 @@ const diagnosticEnd23 = diagnostics?.start?.("main.makeOpenRouterRequestWithRetr
 try {
 
         // Fetch and decrypt this app's existing Pattern B key manifest.
+        if (this.cancelCheck?.()) throw new Error('Rename cancelled.');
         const apiKey = await this.plugin.resolveApiKey();
 
         if (!apiKey) {
@@ -1054,6 +1065,7 @@ try {
                 await new Promise(resolve => setTimeout(diagnostics.wrap("main.timer_15", resolve), delay));
             }
 
+            if (this.cancelCheck?.()) throw new Error('Rename cancelled.');
             try {
                 const timeoutPromise = new Promise<never>((_, reject) =>
                     setTimeout(() => diagnostics.guard("main.timer_16", () => (reject(new Error('Request timed out')))), this.TIMEOUT_MS)
@@ -1067,7 +1079,7 @@ try {
                 // OpenRouter's API might return 200 OK even with an error in the JSON body
                 if (response.status === 200 && response.json && response.json.error) {
                     const errorMessage = response.json.error.message || 'Unknown AI error';
-                    this.log(`OpenRouter AI returned an error for ${promptType}: ${errorMessage}`, true);
+                    this.log('The AI service could not generate a suggestion. Try again later.', true);
                     throw new Error(`AI Error: ${errorMessage}`);
                 }
 
@@ -1089,18 +1101,18 @@ diagnostics.failure("main.caught_17", error);
                         this.log(`Rate limit hit for ${promptType}. Retrying with exponential backoff.`, true);
                     }
                 } else if (status >= 500) {
-                    this.log(`OpenRouter server error (${status}) for ${promptType}: ${errorMessage}. Retrying with exponential backoff.`, true);
+                    this.log('The AI service is unavailable. Retrying.', true);
                 } else if (status >= 400 && status < 500) {
-                    this.log(`Client error (${status}) for ${promptType}: ${errorMessage}. Not retrying.`, true);
+                    this.log('The AI request was rejected. Try again later or contact support.', true);
                     throw new Error(`OpenRouter API Error: ${errorMessage} (Status: ${status})`);
                 } else if (errorMessage === 'Request timed out') {
                     this.log(`OpenRouter request for ${promptType} timed out after ${this.TIMEOUT_MS / 1000}s. Retrying...`, true);
                 } else {
-                    this.log(`Network error for ${promptType}: ${errorMessage}. Retrying...`, true);
+                    this.log('The AI connection failed. Retrying.', true);
                 }
 
                 if (attempt === this.MAX_RETRIES - 1) {
-                    this.log(`OpenRouter request for ${promptType} failed after ${this.MAX_RETRIES} attempts. Last error: ${errorMessage}`, true);
+                    this.log('The AI request failed after several attempts. Try again later.', true);
                     throw new Error(`Failed to communicate with OpenRouter API for ${promptType} after multiple retries. Last error: ${errorMessage}`);
                 }
             }
@@ -1127,7 +1139,7 @@ diagnostics.failure("main.caught_17", error);
      * @param cost The number of credits to deduct.
      * @returns True if credits were successfully deducted (or the plan is subscription-based), false if blocked by insufficient credits.
      */
-    async deductCredits(cost: number): Promise<boolean> {
+    async deductCredits(cost: number, onChargeState?: (state: 'pending' | 'used' | 'unused') => void): Promise<boolean> {
 const diagnosticEnd24 = diagnostics?.start?.("main.deductCredits") ?? (() => {});
 try {
 
@@ -1148,20 +1160,30 @@ try {
             new Notice('Denali AI: a previous charge is still being confirmed. Try again when the connection is restored.', 5000);
             return false;
         }
+        if (this.cancelCheck?.()) return false;
         const stableEventId = `v2consume_${generateConstanceEventId()}`;
+        onChargeState?.('pending');
         this.plugin.settings.pendingSpendEvents.push({ eventId: stableEventId, amount: remainder });
         await this.plugin.saveSettings();
+        if (this.cancelCheck?.()) {
+            settings.pendingSpendEvents = settings.pendingSpendEvents.filter(item => item.eventId !== stableEventId);
+            await this.plugin.saveSettings();
+            onChargeState?.('unused');
+            return false;
+        }
         const spendResult = await this.plugin.spendConstanceCredits(remainder, stableEventId);
 
         if (spendResult.outcome === 'insufficient') {
             this.plugin.settings.pendingSpendEvents = this.plugin.settings.pendingSpendEvents.filter(item => item.eventId !== stableEventId);
             await this.plugin.saveSettings();
+            onChargeState?.('unused');
             this.log(`Not enough purchased credits to cover ${remainder}.`, true);
             new Notice(`This action requires ${cost} credits. Add credits in Settings.`, 7000);
             return false;
         }
 
         if (spendResult.outcome === 'success') {
+            onChargeState?.('used');
             if (typeof spendResult.newPurchasedBalance === "number") settings.purchasedCredits = spendResult.newPurchasedBalance;
             this.plugin.settings.pendingSpendEvents = this.plugin.settings.pendingSpendEvents.filter(item => item.eventId !== stableEventId);
         } else {
@@ -1170,105 +1192,116 @@ try {
         }
         await this.plugin.saveSettings();
         const remaining = settings.availableCredits + settings.purchasedCredits;
-        this.log(`Deducted ${cost} purchased credits. Remaining: **${remaining}**`);
+        this.log(`Used ${cost} credits. Remaining: ${remaining}.`);
         new Notice(`Used ${cost} credits. Remaining: ${remaining}`, 2000);
         return true;
 
 } catch (diagnosticError24) { diagnostics?.failure?.("main.deductCredits", diagnosticError24); throw diagnosticError24; } finally { diagnosticEnd24(); }
 }
 
-    /** Apply one approved rename and optional folder move without changing note content. */
-    async processRename(file: TFile, suggestedName?: string, initialAiSuggestions?: { filename: string | null; folder: string | null } | null): Promise<boolean> {
-const diagnosticEnd25 = diagnostics?.start?.("main.processRename") ?? (() => {});
-try {
+    private outcome(status: RenameOutcome, message: string): RenameOutcome {
+        this.log(message, status === 'failed');
+        return status;
+    }
 
-        this.log(`--- Starting rename process for **${file.name}** ---`);
-        const oldName = file.name;
+    /** Shared by the live review and application, including current collisions. */
+    destination(file: TFile, proposedName: string, folderSuggestion: string | null): { path: string; folder: string } {
+        const { autoSubfolder, fileNameCase, stopWords, characterReplacement, renameTimestampFormat } = this.plugin.settings;
+        let name = proposedName.replace(/[\\/:*?"<>|\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').replace(/^\.+|\.+$/g, '').trim();
+        let folder = file.parent?.path === '/' ? '' : file.parent?.path || '';
+        if (autoSubfolder && folderSuggestion) folder = normalizeFolderSuggestion(folderSuggestion) || folder;
+        if (fileNameCase !== 'original') {
+            const stopWordList = stopWords.split(',').map(word => word.trim().toLowerCase());
+            name = name.split(/\s+/).filter(word => !stopWordList.includes(word.toLowerCase())).join(' ');
+            if (characterReplacement) name = name.replace(/\s/g, characterReplacement);
+        }
+        name = this.applyCaseStyle(name).trim();
+        if (!name || /[\\/:*?"<>|\u0000-\u001f]/.test(name) || /^\.+$/.test(name)) throw new Error('Enter a valid filename.');
+        const date = new Date(file.stat.mtime);
+        const timestamp = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')} ${date.getHours().toString().padStart(2, '0')}-${date.getMinutes().toString().padStart(2, '0')}-${date.getSeconds().toString().padStart(2, '0')}`;
+        if (renameTimestampFormat === 'prefix') name = `${timestamp} ${name}`;
+        else if (renameTimestampFormat === 'suffix') name = `${name} ${timestamp}`;
+        const parent = folder ? folder + '/' : '';
+        const base = name;
+        let path = `${parent}${name}.md`;
+        let suffix = 1;
+        let existing = this.app.vault.getAbstractFileByPath(path);
+        while (existing && existing !== file) {
+            name = `${base}-${suffix++}`;
+            path = `${parent}${name}.md`;
+            existing = this.app.vault.getAbstractFileByPath(path);
+        }
+        return { path, folder };
+    }
+
+    /** Apply one rename without changing note content. Cancellation never promises a refund. */
+    async processRename(file: TFile, suggestedName?: string, initialAiSuggestions?: { filename: string | null; folder: string | null } | null, preview?: (path: string) => void): Promise<RenameOutcome> {
         const originalPath = file.path;
-        const { backupEnabled, maxInputLength, aiNameStyle, maxOutputLength, fileNameCase, stopWords, characterReplacement, autoSubfolder, renameTimestampFormat, paymentType } = this.plugin.settings;
-        const cost = this.calculateCreditCost(true);
+        const charge: { state: 'pending' | 'used' | 'unused' } = { state: 'unused' };
+        const chargeDetails = () => charge.state === 'used'
+            ? ' One credit was used.'
+            : charge.state === 'pending'
+                ? ' Charge confirmation is pending. Its original event is retained for recovery.'
+                : ' No credit was used for this rename.';
+        const cancelled = () => this.outcome('cancelled', `Cancelled ${originalPath}. The note was not renamed.${chargeDetails()}`);
         try {
-            const fileContent = await this.app.vault.read(file);
-            let textToSend = removeFrontmatterBlock(fileContent);
-            if (textToSend.length > maxInputLength) textToSend = textToSend.substring(0, maxInputLength);
-            let newName: string | null = null;
-            let folderSuggestion: string | null = null;
-            if (suggestedName && initialAiSuggestions) {
-                newName = suggestedName;
-                folderSuggestion = initialAiSuggestions.folder;
-            } else {
-                const suggestions = await this.getCombinedAiSuggestions(textToSend, oldName);
-                if (!suggestions) return false;
-                newName = suggestions.filename;
-                folderSuggestion = suggestions.folder;
-                if (suggestedName) newName = suggestedName;
+            if (this.cancelCheck?.()) return cancelled();
+            this.log(`Preparing ${originalPath}.`);
+            const content = await this.app.vault.read(file);
+            if (this.cancelCheck?.()) return cancelled();
+            const body = removeFrontmatterBlock(content);
+            if (!body.trim()) return this.outcome('skipped', `Skipped ${originalPath}: the note body is empty.`);
+            const suggestions = initialAiSuggestions || await this.getCombinedAiSuggestions(body, file.name);
+            if (this.cancelCheck?.()) return cancelled();
+            if (!suggestions) return this.outcome('skipped', `Skipped ${originalPath}: its suggestion was removed from the queue.`);
+            const name = suggestedName !== undefined ? suggestedName : suggestions.filename;
+            if (!name) return this.outcome('failed', `Failed ${originalPath}: no filename suggestion was available. No credit was used.`);
+            if (this.plugin.settings.autoSubfolder && suggestions.folder && !normalizeFolderSuggestion(suggestions.folder)) {
+                this.log('Ignoring an unsafe folder suggestion and keeping the current folder.');
+                new Notice('Denali AI ignored an unsafe subfolder suggestion and will keep the note in its current folder.', 5000);
             }
-            if (!newName) throw new Error(`Denali AI could not suggest a new name for ${oldName}.`);
-            newName = newName.replace(/[\\/:*?"<>|]/g, ' ').replace(/\s+/g, ' ').replace(/^\.+|\.+$/g, '').trim();
-            if (!newName) throw new Error('The suggested filename was empty after removing invalid characters.');
-            let newFolderPath = file.parent ? file.parent.path : '';
-            if (autoSubfolder && folderSuggestion) {
-                const safeFolderSuggestion = normalizeFolderSuggestion(folderSuggestion);
-                if (safeFolderSuggestion) newFolderPath = safeFolderSuggestion;
-                else {
-                    this.log('Ignoring an unsafe AI subfolder suggestion.', true);
-                    new Notice('Denali AI ignored an unsafe subfolder suggestion and will keep the note in its current folder.', 5000);
+            let destination = this.destination(file, name, suggestions.folder);
+            preview?.(destination.path);
+            if (destination.path === file.path) return this.outcome('unchanged', `Unchanged ${originalPath}. No credit was used.`);
+            if (destination.folder && !this.app.vault.getAbstractFileByPath(destination.folder)) {
+                if (this.cancelCheck?.()) return cancelled();
+                await this.app.vault.createFolder(destination.folder);
+            }
+            if (destination.folder && !(this.app.vault.getAbstractFileByPath(destination.folder) instanceof TFolder)) throw new Error('Destination is not a folder.');
+            if (this.cancelCheck?.()) return cancelled();
+            if (file.path !== originalPath || await this.app.vault.read(file) !== content) return this.outcome('skipped', `Skipped ${originalPath}: the note changed during preparation. No credit was used.`);
+            if (this.cancelCheck?.()) return cancelled();
+            if (this.plugin.settings.backupEnabled) await this.createBackup(file);
+            if (this.cancelCheck?.()) return cancelled();
+            const currentContent = await this.app.vault.read(file);
+            if (this.cancelCheck?.()) return cancelled();
+            if (file.path !== originalPath || currentContent !== content) return this.outcome('skipped', `Skipped ${originalPath}: the note changed during preparation. No credit was used.`);
+            destination = this.destination(file, name, suggestions.folder);
+            preview?.(destination.path);
+            if (destination.path === file.path) return this.outcome('unchanged', `Unchanged ${originalPath}. No credit was used.`);
+            if (this.plugin.settings.paymentType === 'one-time') {
+                if (this.cancelCheck?.()) return cancelled();
+                if (!(await this.deductCredits(1, state => { charge.state = state; }))) {
+                    if (this.cancelCheck?.()) return cancelled();
+                    return this.outcome('failed', `Stopped ${originalPath}: no rename was applied.${chargeDetails()}`);
                 }
             }
-            if (fileNameCase !== 'original') {
-                const stopWordList = stopWords.split(',').map(w => w.trim().toLowerCase());
-                newName = newName.split(/\s+/).filter(word => !stopWordList.includes(word.toLowerCase())).join(' ');
-                if (characterReplacement) newName = newName.replace(/\s/g, characterReplacement);
-            }
-            const parentPath = newFolderPath ? newFolderPath + '/' : '';
-            let finalName = this.applyCaseStyle(newName);
-            const date = new Date(file.stat.mtime);
-            const formattedTimestamp = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')} ${date.getHours().toString().padStart(2, '0')}-${date.getMinutes().toString().padStart(2, '0')}-${date.getSeconds().toString().padStart(2, '0')}`;
-            if (renameTimestampFormat === 'prefix') finalName = `${formattedTimestamp} ${finalName}`;
-            else if (renameTimestampFormat === 'suffix') finalName = `${finalName} ${formattedTimestamp}`;
-            let newPath = parentPath + finalName + '.md';
-            const baseName = finalName;
-            let suffix = 1;
-            let existingFile = this.app.vault.getAbstractFileByPath(newPath);
-            while (existingFile && existingFile !== file) {
-                finalName = `${baseName}-${suffix++}`;
-                newPath = parentPath + finalName + '.md';
-                existingFile = this.app.vault.getAbstractFileByPath(newPath);
-            }
-            if (newPath === file.path) {
-                new Notice('The note already has this name. No rename or credit was used.', 4000);
-                return false;
-            }
-            if (newFolderPath && !this.app.vault.getAbstractFileByPath(newFolderPath)) {
-                await this.app.vault.createFolder(newFolderPath);
-            }
-            if (newFolderPath && !(this.app.vault.getAbstractFileByPath(newFolderPath) instanceof TFolder)) {
-                throw new Error(`The destination path is not a folder: ${newFolderPath}`);
-            }
-            if (file.path !== originalPath || await this.app.vault.read(file) !== fileContent) {
-                new Notice('The note changed while Denali was preparing the rename. No rename or credit was used.');
-                return false;
-            }
-            if (backupEnabled) await this.createBackup(file);
-            const currentContent = await this.app.vault.read(file);
-            if (file.path !== originalPath || currentContent !== fileContent) {
-                new Notice('The note changed during preparation. No rename or credit was used.');
-                return false;
-            }
-            if (paymentType === 'one-time' && !(await this.deductCredits(cost))) return false;
-            await this.app.vault.rename(file, newPath);
-            this.log(`File renamed from **${oldName}** to **${finalName}.md**`);
-            new Notice(`File renamed from "${oldName}" to "${finalName}.md"`);
-            return true;
-        } catch (error: any) {
-diagnostics.failure("main.caught_18", error);
-            this.log(`Error: Failed to rename file **${oldName}**. Details: ${error.message}`, true);
-            diagnostics?.legacy?.("error", "main.denali_ai_rename_error_");
-            return false;
+            if (this.cancelCheck?.()) return cancelled();
+            // Credit confirmation can take time. Recheck the note and collisions before mutation.
+            const finalContent = await this.app.vault.read(file);
+            if (this.cancelCheck?.()) return cancelled();
+            if (file.path !== originalPath || finalContent !== content) return this.outcome('failed', `Stopped ${originalPath}: the note changed before application.${chargeDetails()}`);
+            destination = this.destination(file, name, suggestions.folder);
+            preview?.(destination.path);
+            if (destination.path === file.path) return this.outcome('unchanged', `Unchanged ${originalPath}.${chargeDetails()}`);
+            await this.app.vault.rename(file, destination.path);
+            return this.outcome('renamed', `Renamed ${originalPath} to ${destination.path}.${this.cancelCheck?.() ? ' Cancellation arrived after the rename began.' : ''}`);
+        } catch (error) {
+            diagnostics.failure('operation.rename_failed', error);
+            if (this.cancelCheck?.()) return cancelled();
+            return this.outcome('failed', `Failed ${originalPath}: check the destination, backup folder and account status.${chargeDetails()}`);
         }
-
-} catch (diagnosticError25) { diagnostics?.failure?.("main.processRename", diagnosticError25); throw diagnosticError25; } finally { diagnosticEnd25(); }
-}
+    }
 
     // Removed processBatchRename from FileRenamer. It now resides only in DenaliAIOptionsModal.
 
@@ -1293,25 +1326,23 @@ const diagnosticEnd26 = diagnostics?.start?.("main.createBackup") ?? (() => {});
 try {
 
         this.log(`Creating backup of original file...`);
-        const backupFolderPath = DenaliAIFileRenamer.BACKUP_SUBFOLDER;
-        await this.app.vault.createFolder(backupFolderPath).catch((rejectedError3) => {
-diagnostics.failure("main.rejected_4", rejectedError3);
-            this.log(`Backup folder already exists or could not be created.`, false);
-        });
-
-        const timestamp = new Date().getTime(); // Use current time for backup to prevent conflicts
-        const date = new Date(timestamp);
-        const formattedDate = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
-        const formattedTime = `${date.getHours().toString().padStart(2, '0')}-${date.getMinutes().toString().padStart(2, '0')}-${date.getSeconds().toString().padStart(2, '0')}`;
-
-        const nameWithoutExt = file.basename;
-        const timestampString = this.plugin.settings.timestampFormat === 'suffix' ? `-${formattedDate}-${formattedTime}` : '';
-
-        let backupFileName = `${nameWithoutExt}${timestampString}.${file.extension}`;
-
-        const backupPath = `${backupFolderPath}/${backupFileName}`;
+        const configured = normalizeFolderSuggestion(this.plugin.settings.backupFolder);
+        if (!configured) throw new Error('The backup folder must be a valid vault-relative path.');
+        // Mirror the original parent so copies retain their source path.
+        const parent = file.parent?.path === '/' ? '' : file.parent?.path || '';
+        const backupFolderPath = parent ? `${configured}/${parent}` : configured;
+        const existingFolder = this.app.vault.getAbstractFileByPath(backupFolderPath);
+        if (!existingFolder) await this.app.vault.createFolder(backupFolderPath);
+        if (!(this.app.vault.getAbstractFileByPath(backupFolderPath) instanceof TFolder)) throw new Error('The backup destination is not a folder.');
+        if (this.cancelCheck?.()) return;
+        const date = new Date();
+        const suffix = this.plugin.settings.timestampFormat === 'suffix' ? `-${date.toISOString().replace(/[:.]/g, '-')}` : '';
+        const base = `${backupFolderPath}/${file.basename}${suffix}`;
+        let backupPath = `${base}.${file.extension}`;
+        let index = 1;
+        while (this.app.vault.getAbstractFileByPath(backupPath)) backupPath = `${base}-${index++}.${file.extension}`;
         await this.app.vault.copy(file, backupPath);
-        this.log(`Backed up file to **${backupPath}**`);
+        this.log(`Backed up ${file.path} to ${backupPath}.`);
 
 } catch (diagnosticError26) { diagnostics?.failure?.("main.createBackup", diagnosticError26); throw diagnosticError26; } finally { diagnosticEnd26(); }
 }
@@ -1345,8 +1376,15 @@ try {
 const diagnosticEnd28 = diagnostics?.start?.("main.background.58989") ?? (() => {});
 try {
 
+        if (this.cancelCheck?.()) return { filename: null, folder: null };
         report({ label: 'Checking credit eligibility', submittedText: textToSend });
-        if (this.plugin.settings.paymentType === 'one-time' && !(await this.plugin.checkCreditEligibility(1))) return { filename: null, folder: null };
+        try {
+            if (this.plugin.settings.paymentType === 'one-time' && !(await this.plugin.checkCreditEligibility(1))) return { filename: null, folder: null };
+        } catch (error) {
+            diagnostics.failure('operation.credit_eligibility_failed', error);
+            this.log('Could not check your account. Check your connection and sign-in status, then try again.', true);
+            return { filename: null, folder: null };
+        }
         let filenamePrompt = this.plugin.settings.customPrompt;
         if (filenamePrompt === PROMPT_STYLES.balanced || filenamePrompt === PROMPT_STYLES.keywordFilled || filenamePrompt === PROMPT_STYLES.nicheWordsOnly) filenamePrompt = PROMPT_STYLES[aiNameStyle];
         filenamePrompt = filenamePrompt.replace('{max_output_length}', maxOutputLength.toString()).replace('{max_input_length}', maxInputLength.toString());
@@ -1363,6 +1401,7 @@ try {
             response_format: { type: 'json_object' },
         };
         try {
+            if (this.cancelCheck?.()) return { filename: null, folder: null };
             report({ label: 'Processing text', submittedText: textToSend });
             this.log('Requesting filename suggestion...');
             const response = await this.makeOpenRouterRequestWithRetries(
@@ -1382,14 +1421,14 @@ try {
             return { filename, folder };
         } catch (error: any) {
 diagnostics.failure("main.caught_19", error);
-            this.log(`OpenRouter filename request failed: ${error.message}`, true);
+            this.log('Could not generate a filename. Check your connection and account, then try again.', true);
             diagnostics?.legacy?.("error", "main.openrouter_filename_request_failed_");
             return { filename: null, folder: null };
         }
 
 } catch (diagnosticError28) { diagnostics?.failure?.("main.background.58989", diagnosticError28); throw diagnosticError28; } finally { diagnosticEnd28(); }
 });
-        return await (queued.status === 'completed' ? queued.value : null);
+        return queued.status === 'completed' ? queued.value : queued.status === 'cleared' ? null : { filename: null, folder: null };
 
 } catch (diagnosticError27) { diagnostics?.failure?.("main.getCombinedAiSuggestions", diagnosticError27); throw diagnosticError27; } finally { diagnosticEnd27(); }
 }
@@ -1401,8 +1440,14 @@ class DenaliAIOptionsModal extends Modal {
     file: TFile | TFolder | null;
     statusContainer: HTMLElement;
     progressBar: HTMLElement;
+    private progressLabel?: HTMLElement;
     filesToProcess: TFile[] = [];
     processedCount: number = 0;
+    private counts: Record<RenameOutcome, number> = { renamed: 0, unchanged: 0, skipped: 0, cancelled: 0, failed: 0 };
+    private details: string[] = [];
+    private finished = false;
+    private cancelReview?: () => void;
+    private cleanupPreview?: () => void;
     isCancelled: boolean = false;
     cancelButton: HTMLButtonElement;
     fileRenamer: FileRenamer; // Instance of FileRenamer for single file operations
@@ -1415,6 +1460,53 @@ class DenaliAIOptionsModal extends Modal {
         filename: string | null;
         folder: string | null;
     } | null = null;
+
+    private cancelOperation(): void {
+        if (this.finished || this.isCancelled) return;
+        this.isCancelled = true;
+        this.logStatus('Cancellation requested. A charge or rename already in flight may still finish.');
+        this.cancelReview?.();
+    }
+
+    private record(outcome: RenameOutcome): void {
+        this.counts[outcome]++;
+        this.processedCount++;
+        this.updateProgressBar();
+    }
+
+    private finish(): void {
+        if (this.finished) return;
+        this.finished = true;
+        const c = this.counts;
+        const remaining = Math.max(0, this.filesToProcess.length - this.processedCount);
+        const summary = `${this.isCancelled ? 'Stopped' : 'Finished'}: ${this.processedCount} processed, ${c.renamed} renamed, ${c.unchanged} unchanged, ${c.skipped} skipped, ${c.cancelled} cancelled, ${c.failed} failed.${remaining ? ` ${remaining} not started.` : ''}`;
+        this.logStatus(summary);
+        this.plugin.lastRenameDetails = [...this.details];
+        new Notice(summary, 8000);
+        this.cancelReview = undefined;
+        this.cleanupPreview?.();
+        this.cancelButton?.remove();
+        setTimeout(() => this.close(), this.plugin.settings.modalCloseDelay * 1000);
+    }
+
+    private addPreview(panel: HTMLElement, input: HTMLInputElement, file: TFile, folder: string | null): (path: string) => void {
+        const preview = panel.createEl('p');
+        const show = (path: string) => preview.setText(`Destination: ${path}`);
+        const refresh = () => {
+            try { show(this.fileRenamer.destination(file, input.value, folder).path); }
+            catch { preview.setText('Enter a valid filename to preview its destination.'); }
+        };
+        input.addEventListener('input', refresh);
+        const refs = [this.app.vault.on('create', refresh), this.app.vault.on('delete', refresh), this.app.vault.on('rename', refresh)];
+        this.cleanupPreview?.();
+        this.cleanupPreview = () => {
+            input.removeEventListener('input', refresh);
+            refs.forEach(ref => this.app.vault.offref(ref));
+            this.cleanupPreview = undefined;
+        };
+        refresh();
+        return show;
+    }
 
     start(): void {
         if (this.plugin.support.automaticWindowsEnabled() || this.plugin.settings.renameChoice === 'interactive' || this.plugin.settings.reviewBeforeApply) this.open();
@@ -1441,7 +1533,8 @@ const diagnosticAction29 = () => {
 
         if (!this.file) {
             this.logStatus('No file or folder selected. Please select a file or folder to rename.', true);
-            setTimeout(() => diagnostics.guard("main.timer_21", () => (this.close())), this.plugin.settings.modalCloseDelay * 1000);
+            this.record('skipped');
+            this.finish();
             return;
         }
 
@@ -1467,7 +1560,8 @@ const diagnosticAction29 = () => {
                 const isUntitled = untitledKeywords.some(keyword => this.file!.name.toLowerCase().startsWith(keyword));
                 if (this.plugin.settings.lookForUntitled && !isUntitled) {
                     this.logStatus(`File "${this.file.name}" is not an "untitled" file, so it will not be renamed.`, true);
-                    setTimeout(() => diagnostics.guard("main.timer_22", () => (this.close())), this.plugin.settings.modalCloseDelay * 1000);
+                    this.record('skipped');
+                    this.finish();
                     return;
                 }
                 // --- SAAS: Daily/Monthly Limit Check (Placeholder) ---
@@ -1491,7 +1585,8 @@ const diagnosticAction29 = () => {
                 const isUntitled = untitledKeywords.some(keyword => this.file!.name.toLowerCase().startsWith(keyword));
                 if (this.plugin.settings.lookForUntitled && !isUntitled) {
                     this.logStatus(`File "${this.file.name}" is not an "untitled" file, so it will not be renamed.`, true);
-                    setTimeout(() => diagnostics.guard("main.timer_23", () => (this.close())), this.plugin.settings.modalCloseDelay * 1000);
+                    this.record('skipped');
+                    this.finish();
                     return;
                 }
                 // --- SAAS: Daily/Monthly Limit Check (Placeholder) ---
@@ -1513,13 +1608,15 @@ const diagnosticAction29 = () => {
             if (this.file instanceof TFolder) {
                 this.progressBar = this.contentEl.createEl('div', { cls: 'denali-progress-bar-container' });
                 this.progressBar.createEl('div', { cls: 'denali-progress-bar' });
+                this.progressLabel = this.contentEl.createEl('p');
+                this.updateProgressBar();
             }
             this.cancelButton = modalEl.createEl('button', { text: 'Cancel', cls: 'mod-warning' });
             this.cancelButton.onclick = diagnostics.wrap("main.dom_1", () => {
-                this.isCancelled = true;
-                this.logStatus('Rename cancelled by user.');
+                this.cancelOperation();
             });
         }
+        this.contentEl.createEl('p', { text: `Version ${this.plugin.manifest.version}`, cls: 'denali-version' });
 
 }; return diagnostics?.run ? diagnostics.run("main.onOpen", diagnosticAction29) : diagnosticAction29();
 
@@ -1534,53 +1631,80 @@ try {
         this.logStatus('Generating a filename suggestion...');
         try {
             const fileContent = await this.app.vault.read(file);
+            if (this.isCancelled) { this.record('cancelled'); this.finish(); return; }
+            if (!removeFrontmatterBlock(fileContent).trim()) {
+                this.logStatus(`Skipped ${originalPath}: the note body is empty.`);
+                this.record('skipped'); this.finish(); return;
+            }
             const aiSuggestions = await this.fileRenamer.getCombinedAiSuggestions(removeFrontmatterBlock(fileContent), file.name);
+            if (this.isCancelled) { this.record('cancelled'); this.finish(); return; }
             if (!aiSuggestions) {
-                this.logStatus('Filename suggestion was removed from the waiting queue.', true);
-                this.close();
+                this.logStatus('Skipped: filename suggestion was removed from the waiting queue.');
+                this.record('skipped'); this.finish();
                 return;
             }
+            if (!aiSuggestions.filename) {
+                this.logStatus(`Failed ${originalPath}: no filename suggestion was available. No credit was used.`, true);
+                this.record('failed'); this.finish(); return;
+            }
 
-            this.suggestedName = aiSuggestions.filename || file.basename; // Use AI filename or original basename
+            this.suggestedName = aiSuggestions.filename;
             this.initialAiSuggestions = aiSuggestions;
 
             this.editContainer = this.contentEl.createEl('div', { cls: 'denali-edit-container' });
             this.editContainer.createEl('label', { text: 'Suggested filename:', cls: 'denali-label' });
             this.nameInput = this.editContainer.createEl('input', { type: 'text', cls: 'denali-input' });
             this.nameInput.value = this.suggestedName;
+            const updatePreview = this.addPreview(this.editContainer, this.nameInput, file, aiSuggestions.folder);
 
             const buttonContainer = this.editContainer.createEl('div', { cls: 'denali-button-container' });
             const acceptButton = buttonContainer.createEl('button', { text: 'Rename', cls: 'mod-cta' });
             const cancelButton = buttonContainer.createEl('button', { text: 'Cancel', cls: 'mod-warning' });
+            this.cancelReview = () => {
+                this.logStatus(`Cancelled ${originalPath} before application. No credit was used.`);
+                this.record('cancelled');
+                this.finish();
+            };
+            this.contentEl.createEl('p', { text: `Version ${this.plugin.manifest.version}`, cls: 'denali-version' });
 
             acceptButton.onclick = diagnostics.wrap("main.dom_2", async () => {
 const diagnosticEnd31 = diagnostics?.start?.("main.background.70508") ?? (() => {});
 try {
 
-                if (this.initialRenameDone) return;
+                if (this.initialRenameDone || this.isCancelled) return;
+                try { this.fileRenamer.destination(file, this.nameInput.value, aiSuggestions.folder); }
+                catch { new Notice('Enter a valid filename.'); return; }
                 this.initialRenameDone = true;
-                this.editContainer.style.display = 'none'; // Hide the input and buttons
+                this.cancelReview = undefined;
+                acceptButton.disabled = true;
+                this.nameInput.disabled = true;
                 this.logStatus(`User accepted new name: **${this.nameInput.value}**`);
                 this.logStatus('Starting rename...');
                 // Pass the user-reviewed filename and optional folder suggestion.
-                if (file.path !== originalPath || await this.app.vault.read(file) !== fileContent) {
-                    new Notice('The note changed while its suggestion was open. No rename or credit was used.');
-                    return;
+                try {
+                    if (file.path !== originalPath || await this.app.vault.read(file) !== fileContent) {
+                        this.logStatus('Skipped: the note changed while its suggestion was open. No credit was used.');
+                        this.record('skipped');
+                    } else {
+                        this.record(await this.fileRenamer.processRename(file, this.nameInput.value, this.initialAiSuggestions, updatePreview));
+                    }
+                } catch (error) {
+                    diagnostics.failure('operation.single_review_failed', error);
+                    this.logStatus(`Failed ${originalPath}: the note could not be prepared.`, true);
+                    this.record(this.isCancelled ? 'cancelled' : 'failed');
                 }
-                await this.fileRenamer.processRename(file, this.nameInput.value, this.initialAiSuggestions);
-                this.close();
+                this.finish();
 
 } catch (diagnosticError31) { diagnostics?.failure?.("main.background.70508", diagnosticError31); throw diagnosticError31; } finally { diagnosticEnd31(); }
 });
 
             cancelButton.onclick = diagnostics.wrap("main.dom_3", () => {
-                this.logStatus('User cancelled rename process.');
-                this.close();
+                this.cancelOperation();
             });
         } catch (error) {
 diagnostics.failure("main.caught_24", error);
-            this.logStatus(`Failed to generate name suggestion: ${error.message}`, true);
-            setTimeout(() => diagnostics.guard("main.timer_25", () => (this.close())), this.plugin.settings.modalCloseDelay * 1000);
+            this.logStatus('Could not prepare a suggestion. Check your connection and try again.', true);
+            this.record(this.isCancelled ? 'cancelled' : 'failed'); this.finish();
         }
 
 } catch (diagnosticError30) { diagnostics?.failure?.("main.showInteractiveModal", diagnosticError30); throw diagnosticError30; } finally { diagnosticEnd30(); }
@@ -1590,18 +1714,17 @@ diagnostics.failure("main.caught_24", error);
 const diagnosticEnd32 = diagnostics?.start?.("main.processAutomaticRename") ?? (() => {});
 try {
 
-        await this.fileRenamer.processRename(file);
-        this.logStatus('Automatic rename process completed.', false);
-        setTimeout(() => diagnostics.guard("main.timer_26", () => (this.close())), this.plugin.settings.modalCloseDelay * 1000);
+        this.record(await this.fileRenamer.processRename(file));
+        this.finish();
 
 } catch (diagnosticError32) { diagnostics?.failure?.("main.processAutomaticRename", diagnosticError32); throw diagnosticError32; } finally { diagnosticEnd32(); }
 }
 
     logStatus(message: string, isError: boolean = false) {
         diagnostics?.legacy?.(isError ? "error" : "info", "operation.rename_progress");
-        if (!this.plugin.settings.logEnabled) {
-            return;
-        }
+        this.details.push(message);
+        if (this.details.length > 200) this.details.shift();
+        if (!this.plugin.settings.logEnabled || !this.statusContainer) return;
         const timestamp = new Date().toLocaleTimeString();
         const logLine = this.statusContainer.createEl('div', { cls: 'denali-log-line' });
         logLine.createSpan({ text: `[${timestamp}] `, cls: 'denali-log-timestamp' });
@@ -1609,108 +1732,108 @@ try {
         const messageSpan = logLine.createSpan({ cls: isError ? 'denali-log-error' : 'denali-log-message' });
         // File names and provider responses can appear here; render them as
         // text so a note title cannot inject markup into the modal.
-        messageSpan.setText(isError ? 'This action failed. Try again or copy the diagnostic log for support.' : 'Operation progress updated.');
+        messageSpan.setText(message);
         while (this.statusContainer.children.length > 200) this.statusContainer.firstElementChild?.remove();
 
         this.statusContainer.scrollTop = this.statusContainer.scrollHeight;
         /* Progress is recorded through the bounded logger above. */ // Always log to console for debugging
     }
 
-    /** Process the Markdown files in a folder with progress and the configured batch limit. */
+    /** Count every attempted note, including skipped and failed notes. */
     async processBatchRename(folder: TFolder) {
-const diagnosticEnd33 = diagnostics?.start?.("main.processBatchRename") ?? (() => {});
-try {
-
         this.filesToProcess = this.selectedBatch
             ? this.selectedBatch.filter(file => !this.plugin.settings.lookForUntitled || this.plugin.settings.untitledKeywords.split(',').some(keyword => file.name.toLowerCase().startsWith(keyword.trim().toLowerCase())))
-            : this.fileRenamer.getMarkdownFiles(folder); // Use FileRenamer's utility method
-        this.processedCount = 0;
-
-        // --- SAAS: Batch Limit Check (Subscription) ---
-        if (this.plugin.settings.paymentType === 'subscription') {
-            const batchLimit = this.plugin.settings.batchRenameLimit;
-            if (this.filesToProcess.length > batchLimit) {
-                this.logStatus(`Batch rename limited to ${batchLimit} files for your current plan (${this.plugin.settings.userPlan.toUpperCase()}). Found ${this.filesToProcess.length} files. Processing first ${batchLimit}.`, true);
-                this.filesToProcess = this.filesToProcess.slice(0, batchLimit); // Truncate the list
+            : this.fileRenamer.getMarkdownFiles(folder);
+        if (this.plugin.settings.paymentType === 'subscription' && this.filesToProcess.length > this.plugin.settings.batchRenameLimit) {
+            this.logStatus(`Processing the first ${this.plugin.settings.batchRenameLimit} notes allowed by the current plan.`);
+            this.filesToProcess = this.filesToProcess.slice(0, this.plugin.settings.batchRenameLimit);
+        }
+        this.logStatus(`Starting ${this.filesToProcess.length} notes.`);
+        this.updateProgressBar();
+        for (const file of this.filesToProcess) {
+            if (this.isCancelled) break;
+            let outcome: RenameOutcome;
+            try {
+                outcome = this.plugin.settings.reviewBeforeApply || this.plugin.settings.renameChoice === 'interactive'
+                    ? await this.processBatchReviewedRename(file)
+                    : await this.fileRenamer.processRename(file);
+            } catch (error) {
+                diagnostics.failure('operation.batch_note_failed', error);
+                this.logStatus(`Failed ${file.path}: the note could not be prepared.`, true);
+                outcome = this.isCancelled ? 'cancelled' : 'failed';
             }
+            this.record(outcome);
         }
-        // --- END SAAS ---
+        this.finish();
+    }
 
-        if (this.filesToProcess.length === 0) {
-            this.logStatus('No markdown files found in the selected folder.', true);
-            if (this.progressBar) {
-                this.progressBar.style.display = 'none';
-            }
-            setTimeout(() => diagnostics.guard("main.timer_27", () => (this.close())), this.plugin.settings.modalCloseDelay * 1000);
-            return;
-        }
-
-        this.logStatus(`Starting batch rename for ${this.filesToProcess.length} files...`);
-
-    for (const file of this.filesToProcess) {
-            if (this.isCancelled) {
-                this.logStatus(`Batch rename cancelled by user.`);
-                break;
-            }
-            
-            // processRename owns credit deduction so single-file and batch operations are charged once.
-            const renamed = this.plugin.settings.reviewBeforeApply
-                ? await this.processBatchReviewedRename(file)
-                : await this.fileRenamer.processRename(file);
-            if (renamed) {
-                this.processedCount++;
-                this.updateProgressBar();
-            }
-        }
-
-        this.logStatus('Batch rename process completed.', false);
-        if (this.progressBar) {
-            this.progressBar.style.display = 'none';
-        }
-        if (this.cancelButton) {
-            this.cancelButton.remove();
-        }
-        setTimeout(() => diagnostics.guard("main.timer_28", () => (this.close())), this.plugin.settings.modalCloseDelay * 1000);
-
-} catch (diagnosticError33) { diagnostics?.failure?.("main.processBatchRename", diagnosticError33); throw diagnosticError33; } finally { diagnosticEnd33(); }
-}
-
-    private async processBatchReviewedRename(file: TFile): Promise<boolean> {
-const diagnosticEnd34 = diagnostics?.start?.("main.processBatchReviewedRename") ?? (() => {});
-try {
-
-        const fileContent = await this.app.vault.read(file);
-        const suggestions = await this.fileRenamer.getCombinedAiSuggestions(removeFrontmatterBlock(fileContent), file.name);
-        if (!suggestions) return false;
+    private async processBatchReviewedRename(file: TFile): Promise<RenameOutcome> {
         const currentPath = file.path;
+        const fileContent = await this.app.vault.read(file);
+        if (this.isCancelled) return 'cancelled';
+        if (!removeFrontmatterBlock(fileContent).trim()) {
+            this.logStatus(`Skipped ${currentPath}: the note body is empty.`);
+            return 'skipped';
+        }
+        const suggestions = await this.fileRenamer.getCombinedAiSuggestions(removeFrontmatterBlock(fileContent), file.name);
+        if (this.isCancelled) return 'cancelled';
+        if (!suggestions?.filename) {
+            this.logStatus(suggestions
+                ? `Failed ${currentPath}: no filename suggestion was available. No credit was used.`
+                : `Skipped ${currentPath}: its suggestion was removed from the queue.`, !!suggestions);
+            return suggestions ? 'failed' : 'skipped';
+        }
         const panel = this.contentEl.createDiv('denali-edit-container');
         panel.createEl('p', { text: `Current: ${currentPath}` });
         panel.createEl('label', { text: 'Suggested filename:' });
         const input = panel.createEl('input', { type: 'text', cls: 'denali-input' });
-        input.value = suggestions.filename || file.basename;
+        input.value = suggestions.filename;
+        const updatePreview = this.addPreview(panel, input, file, suggestions.folder);
         const actions = panel.createDiv('denali-button-container');
         const apply = actions.createEl('button', { text: 'Apply rename', cls: 'mod-cta' });
         const skip = actions.createEl('button', { text: 'Skip' });
-        return await (new Promise((resolve) => {
-            apply.onclick = diagnostics.wrap("main.dom_4", async () => {
-const diagnosticEnd35 = diagnostics?.start?.("main.background.76192") ?? (() => {});
-try {
-
+        return await new Promise<RenameOutcome>(resolve => {
+            const finishReview = (outcome: RenameOutcome) => {
+                this.cancelReview = undefined;
+                this.cleanupPreview?.();
+                panel.remove();
+                resolve(outcome);
+            };
+            this.cancelReview = () => {
+                this.logStatus(`Cancelled ${currentPath} before application. No credit was used.`);
+                finishReview('cancelled');
+            };
+            apply.onclick = async () => {
+                if (apply.disabled || this.isCancelled) return;
+                try { this.fileRenamer.destination(file, input.value, suggestions.folder); }
+                catch { new Notice('Enter a valid filename.'); return; }
+                this.cancelReview = undefined;
                 apply.disabled = true;
-                try { const renamed = await this.fileRenamer.processRename(file, input.value, suggestions); panel.remove(); resolve(renamed); }
-                catch (error) {
-diagnostics.failure("main.caught_29", error); panel.remove(); this.logStatus(`Failed to rename ${currentPath}: ${error instanceof Error ? error.message : String(error)}`, true); resolve(false); }
-
-} catch (diagnosticError35) { diagnostics?.failure?.("main.background.76192", diagnosticError35); throw diagnosticError35; } finally { diagnosticEnd35(); }
-});
-            skip.onclick = diagnostics.wrap("main.dom_5", () => { panel.remove(); resolve(false); });
-        }));
-
-} catch (diagnosticError34) { diagnostics?.failure?.("main.processBatchReviewedRename", diagnosticError34); throw diagnosticError34; } finally { diagnosticEnd34(); }
-}
+                skip.disabled = true;
+                input.disabled = true;
+                try {
+                    if (file.path !== currentPath || await this.app.vault.read(file) !== fileContent) {
+                        this.logStatus(`Skipped ${currentPath}: the note changed while its suggestion was open. No credit was used.`);
+                        finishReview('skipped');
+                        return;
+                    }
+                    finishReview(await this.fileRenamer.processRename(file, input.value, suggestions, updatePreview));
+                } catch (error) {
+                    diagnostics.failure('operation.review_failed', error);
+                    this.logStatus(`Failed ${currentPath}: the note could not be prepared.`, true);
+                    finishReview('failed');
+                }
+            };
+            skip.onclick = () => {
+                this.logStatus(`Skipped ${currentPath} by user. No credit was used.`);
+                finishReview('skipped');
+            };
+        });
+    }
 
     updateProgressBar() {
         const progress = this.filesToProcess.length > 0 ? (this.processedCount / this.filesToProcess.length) * 100 : 0;
+        this.progressLabel?.setText(`${this.processedCount} of ${this.filesToProcess.length} notes processed.`);
         if (this.progressBar) {
             const progressBar = this.progressBar.querySelector('.denali-progress-bar') as HTMLElement;
             progressBar.style.width = `${progress}%`;
@@ -1722,6 +1845,9 @@ diagnostics.failure("main.caught_29", error); panel.remove(); this.logStatus(`Fa
 return diagnostics.guard("main.onClose_30", () => {
 const diagnosticAction36 = () => {
 
+        this.cancelOperation();
+        this.cleanupPreview?.();
+        this.cancelButton?.remove();
         const { contentEl } = this;
         contentEl.empty();
 
@@ -1878,7 +2004,7 @@ diagnostics.failure("main.rejected_6", rejectedError5);})));
 diagnosticStage51();
 
         const diagnosticStage52 = diagnostics?.start?.("settings.render.stage_11") ?? (() => {});
-if (state.settingsMode !== 'advanced') return;
+if (state.settingsMode !== 'advanced') { containerEl.createEl('p', { text: `Version ${this.plugin.manifest.version}` }); return; }
 diagnosticStage52();
 
 
@@ -1978,7 +2104,7 @@ diagnosticStage73();
         const diagnosticStage74 = diagnostics?.start?.("settings.render.stage_28") ?? (() => {});
 this.plugin.support.addDiagnosticsSetting(containerEl);
 diagnosticStage74();
-
+containerEl.createEl('p', { text: `Version ${this.plugin.manifest.version}` });
 
 }; return diagnostics?.run ? diagnostics.run("settings.open", diagnosticAction37) : diagnosticAction37();
 
