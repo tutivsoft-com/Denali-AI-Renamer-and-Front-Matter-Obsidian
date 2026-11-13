@@ -24,7 +24,7 @@ Uncertain older billing records are retained and are never replayed as new v2 ch
 
 Version 5.0.72: Rename outcomes and queue controls were improved. Suggested Windows folder names are validated before a rename.
 
-Use the matching GitHub release for installation availability. Community directory review is separate from source validation.
+Obsidian Community release **5.0.72** requires Obsidian **1.5.0** or later. [GitHub release](https://github.com/tutivsoft-com/Denali-AI-Renamer-and-Front-Matter-Obsidian/releases/tag/5.0.72).
 
 ## Support
 
