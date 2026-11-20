@@ -580,6 +580,35 @@ export default class DenaliAIFileRenamer extends Plugin {
     renameModal: DenaliAIOptionsModal | null = null;
 
     lastRenameDetails: string[] = [];
+    private logWrites: Promise<void> = Promise.resolve();
+    private logWriteFailed = false;
+
+    saveRenameLog(message: string, isError: boolean): void {
+        if (!this.settings.logFileEnabled) return;
+        const folder = normalizeFolderSuggestion(this.settings.backupFolder);
+        const entry = `[${new Date().toISOString()}] ${isError ? 'Error: ' : ''}${message}\n`;
+        this.logWrites = this.logWrites.then(async () => {
+            if (!folder) throw new Error('Invalid log folder.');
+            await this.ensureFolder(folder);
+            await this.app.vault.adapter.append(`${folder}/denali-rename.log`, entry);
+            this.logWriteFailed = false;
+        }).catch(error => {
+            diagnostics.failure('operation.log_write_failed', error);
+            if (!this.logWriteFailed) new Notice('Denali could not save the rename log. Check the backup folder.');
+            this.logWriteFailed = true;
+        });
+    }
+
+    async ensureFolder(path: string): Promise<void> {
+        const vault = this.app.vault;
+        if (vault.getAbstractFileByPath(path) instanceof TFolder) return;
+        try {
+            await vault.createFolder(path);
+        } catch (error) {
+            if (!(vault.getAbstractFileByPath(path) instanceof TFolder)) throw error;
+        }
+    }
+
 
     public static readonly DENALI_FOLDER = 'Denali AI';
     public static readonly BACKUP_SUBFOLDER = `${DenaliAIFileRenamer.DENALI_FOLDER}/Backups`;
@@ -777,8 +806,7 @@ const diagnosticAction13 = () => {
             this.app.vault.on('create', (file) => {
 return diagnostics.guard("main.event_11", () => {
                 if (this.settings.renameOnCreation && file instanceof TFile && file.extension === 'md') {
-                    const untitledKeywords = this.settings.untitledKeywords.split(',').map(k => k.trim());
-                    if (untitledKeywords.some(keyword => file.name.startsWith(keyword))) {
+                    if (matchesUntitledPrefix(file.name, this.settings.untitledKeywords)) {
                         if (this.renameModal) {
                             this.renameModal.close();
                         }
@@ -981,6 +1009,14 @@ diagnostics.failure("main.caught_14", caughtError13);
 
 }
 
+function matchesUntitledPrefix(filename: string, keywords: string): boolean {
+    const name = filename.toLowerCase();
+    return keywords.split(',').some(keyword => {
+        const prefix = keyword.trim().toLowerCase();
+        return prefix.length > 0 && name.startsWith(prefix);
+    });
+}
+
 type RenameOutcome = 'renamed' | 'unchanged' | 'skipped' | 'cancelled' | 'failed';
 
 class FileRenamer {
@@ -993,43 +1029,12 @@ class FileRenamer {
     private readonly INITIAL_BACKOFF_DELAY_MS = 1000; // 1 second
     private readonly TIMEOUT_MS = 30000; // 30 seconds
 
-    constructor(app: App, plugin: DenaliAIFileRenamer, logFunc?: (message: string, isError?: boolean) => void, cancelCheck?: () => boolean) {
+    constructor(app: App, plugin: DenaliAIFileRenamer, logFunc: (message: string, isError?: boolean) => void, cancelCheck?: () => boolean) {
         this.app = app;
         this.plugin = plugin;
-        this.log = logFunc || this.defaultLogHandler.bind(this);
+        this.log = logFunc;
         this.cancelCheck = cancelCheck;
     }
-
-    private async defaultLogHandler(message: string, isError: boolean = false) {
-        diagnostics?.legacy?.(isError ? "error" : "info", "operation.rename_progress");
-const diagnosticEnd22 = diagnostics?.start?.("main.defaultLogHandler") ?? (() => {});
-try {
-
-        if (!this.plugin.settings.logEnabled) {
-            return;
-        }
-
-        // Only log to console if it's an error or if logFileEnabled is false (meaning no file log)
-        // Otherwise, the modal's logStatus will handle the console.log if it's passed.
-        // For FileRenamer, this.log is always the modal's logStatus.
-        // So, this defaultLogHandler is effectively unused when called from the modal.
-        // If it were used, it would log to console and conditionally show a notice.
-        // The current setup passes the modal's logStatus, which already handles console.log and modal display.
-        // So, this method is mostly for fallback or if FileRenamer was used outside the modal.
-        /* Progress is recorded through the bounded logger above. */ // Keep for general debugging if not handled by modal's logStatus
-
-        if (isError) {
-            new Notice(message, 5000);
-        }
-
-        if (this.plugin.settings.logFileEnabled) {
-            await this.writeLogToFile(message);
-        }
-
-} catch (diagnosticError22) { diagnostics?.failure?.("main.defaultLogHandler", diagnosticError22); throw diagnosticError22; } finally { diagnosticEnd22(); }
-}
-
-    private async writeLogToFile(_message: string) { /* Diagnostics already use the bounded PluginSupport buffer. */ }
 
     /**
      * Handles network requests to OpenRouter with exponential backoff, retries, and timeout.
@@ -1213,7 +1218,7 @@ try {
         if (fileNameCase !== 'original') {
             const stopWordList = stopWords.split(',').map(word => word.trim().toLowerCase());
             name = name.split(/\s+/).filter(word => !stopWordList.includes(word.toLowerCase())).join(' ');
-            if (characterReplacement) name = name.replace(/\s/g, characterReplacement);
+            if (fileNameCase !== 'camel' && characterReplacement) name = name.replace(/\s/g, characterReplacement);
         }
         name = this.applyCaseStyle(name).trim();
         if (!name || /[\\/:*?"<>|\u0000-\u001f]/.test(name) || /^\.+$/.test(name)) throw new Error('Enter a valid filename.');
@@ -1221,6 +1226,9 @@ try {
         const timestamp = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')} ${date.getHours().toString().padStart(2, '0')}-${date.getMinutes().toString().padStart(2, '0')}-${date.getSeconds().toString().padStart(2, '0')}`;
         if (renameTimestampFormat === 'prefix') name = `${timestamp} ${name}`;
         else if (renameTimestampFormat === 'suffix') name = `${name} ${timestamp}`;
+        if (/^(?:con|prn|aux|nul|conin\$|conout\$|(?:com|lpt)[1-9¹²³]) *(?:\.|$)/i.test(name)) {
+            throw new Error('Enter a filename that is available on Windows.');
+        }
         const parent = folder ? folder + '/' : '';
         const base = name;
         let path = `${parent}${name}.md`;
@@ -1231,6 +1239,7 @@ try {
             path = `${parent}${name}.md`;
             existing = this.app.vault.getAbstractFileByPath(path);
         }
+        if (new TextEncoder().encode(name + '.md').length > 255) throw new Error('Enter a shorter filename.');
         return { path, folder };
     }
 
@@ -1265,7 +1274,7 @@ try {
             if (destination.path === file.path) return this.outcome('unchanged', `Unchanged ${originalPath}. No credit was used.`);
             if (destination.folder && !this.app.vault.getAbstractFileByPath(destination.folder)) {
                 if (this.cancelCheck?.()) return cancelled();
-                await this.app.vault.createFolder(destination.folder);
+                await this.plugin.ensureFolder(destination.folder);
             }
             if (destination.folder && !(this.app.vault.getAbstractFileByPath(destination.folder) instanceof TFolder)) throw new Error('Destination is not a folder.');
             if (this.cancelCheck?.()) return cancelled();
@@ -1294,7 +1303,7 @@ try {
             destination = this.destination(file, name, suggestions.folder);
             preview?.(destination.path);
             if (destination.path === file.path) return this.outcome('unchanged', `Unchanged ${originalPath}.${chargeDetails()}`);
-            await this.app.vault.rename(file, destination.path);
+            await this.app.fileManager.renameFile(file, destination.path);
             return this.outcome('renamed', `Renamed ${originalPath} to ${destination.path}.${this.cancelCheck?.() ? ' Cancellation arrived after the rename began.' : ''}`);
         } catch (error) {
             diagnostics.failure('operation.rename_failed', error);
@@ -1310,9 +1319,10 @@ try {
             case 'kebab':
                 return name.toLowerCase().replace(/\s/g, '-').replace(/--+/g, '-');
             case 'camel':
-                return name.replace(/(?:^\w|[A-Z]|\b\w)/g, (word, index) => {
-                    return index === 0 ? word.toLowerCase() : word.toUpperCase();
-                }).replace(/\s+/g, '');
+                return name.split(/[\s_-]+/).filter(Boolean).map((word, index) => {
+                    const first = word.charAt(0);
+                    return (index === 0 ? first.toLowerCase() : first.toUpperCase()) + word.slice(1);
+                }).join('');
             case 'lowercase':
                 return name.toLowerCase().replace(/\s/g, '');
             case 'original':
@@ -1331,9 +1341,7 @@ try {
         // Mirror the original parent so copies retain their source path.
         const parent = file.parent?.path === '/' ? '' : file.parent?.path || '';
         const backupFolderPath = parent ? `${configured}/${parent}` : configured;
-        const existingFolder = this.app.vault.getAbstractFileByPath(backupFolderPath);
-        if (!existingFolder) await this.app.vault.createFolder(backupFolderPath);
-        if (!(this.app.vault.getAbstractFileByPath(backupFolderPath) instanceof TFolder)) throw new Error('The backup destination is not a folder.');
+        await this.plugin.ensureFolder(backupFolderPath);
         if (this.cancelCheck?.()) return;
         const date = new Date();
         const suffix = this.plugin.settings.timestampFormat === 'suffix' ? `-${date.toISOString().replace(/[:.]/g, '-')}` : '';
@@ -1349,11 +1357,10 @@ try {
 
     getMarkdownFiles(folder: TFolder): TFile[] {
         let files: TFile[] = [];
-        const untitledKeywords = this.plugin.settings.untitledKeywords.split(',').map(k => k.trim().toLowerCase());
 
         for (const item of folder.children) {
             if (item instanceof TFile && item.extension === 'md') {
-                const isUntitled = this.plugin.settings.lookForUntitled && untitledKeywords.some(keyword => item.name.toLowerCase().startsWith(keyword));
+                const isUntitled = this.plugin.settings.lookForUntitled && matchesUntitledPrefix(item.name, this.plugin.settings.untitledKeywords);
                 if (isUntitled || !this.plugin.settings.lookForUntitled) {
                     files.push(item);
                 }
@@ -1556,8 +1563,7 @@ const diagnosticAction29 = () => {
 
         if (this.plugin.settings.renameChoice === 'interactive' || this.plugin.settings.reviewBeforeApply) {
             if (this.file instanceof TFile) {
-                const untitledKeywords = this.plugin.settings.untitledKeywords.split(',').map(k => k.trim().toLowerCase());
-                const isUntitled = untitledKeywords.some(keyword => this.file!.name.toLowerCase().startsWith(keyword));
+                const isUntitled = matchesUntitledPrefix(this.file!.name, this.plugin.settings.untitledKeywords);
                 if (this.plugin.settings.lookForUntitled && !isUntitled) {
                     this.logStatus(`File "${this.file.name}" is not an "untitled" file, so it will not be renamed.`, true);
                     this.record('skipped');
@@ -1581,8 +1587,7 @@ const diagnosticAction29 = () => {
             }
         } else { // Automatic Mode
             if (this.file instanceof TFile) {
-                const untitledKeywords = this.plugin.settings.untitledKeywords.split(',').map(k => k.trim().toLowerCase());
-                const isUntitled = untitledKeywords.some(keyword => this.file!.name.toLowerCase().startsWith(keyword));
+                const isUntitled = matchesUntitledPrefix(this.file!.name, this.plugin.settings.untitledKeywords);
                 if (this.plugin.settings.lookForUntitled && !isUntitled) {
                     this.logStatus(`File "${this.file.name}" is not an "untitled" file, so it will not be renamed.`, true);
                     this.record('skipped');
@@ -1722,6 +1727,7 @@ try {
 
     logStatus(message: string, isError: boolean = false) {
         diagnostics?.legacy?.(isError ? "error" : "info", "operation.rename_progress");
+        this.plugin.saveRenameLog(message, isError);
         this.details.push(message);
         if (this.details.length > 200) this.details.shift();
         if (!this.plugin.settings.logEnabled || !this.statusContainer) return;
@@ -1742,7 +1748,7 @@ try {
     /** Count every attempted note, including skipped and failed notes. */
     async processBatchRename(folder: TFolder) {
         this.filesToProcess = this.selectedBatch
-            ? this.selectedBatch.filter(file => !this.plugin.settings.lookForUntitled || this.plugin.settings.untitledKeywords.split(',').some(keyword => file.name.toLowerCase().startsWith(keyword.trim().toLowerCase())))
+            ? this.selectedBatch.filter(file => !this.plugin.settings.lookForUntitled || matchesUntitledPrefix(file.name, this.plugin.settings.untitledKeywords))
             : this.fileRenamer.getMarkdownFiles(folder);
         if (this.plugin.settings.paymentType === 'subscription' && this.filesToProcess.length > this.plugin.settings.batchRenameLimit) {
             this.logStatus(`Processing the first ${this.plugin.settings.batchRenameLimit} notes allowed by the current plan.`);

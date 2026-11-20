@@ -20,12 +20,8 @@ Account requests send authentication and billing information to Constance. Passw
 
 Uncertain older billing records are retained and are never replayed as new v2 charges. Connect the original account and contact support if an earlier operation needs recovery.
 
-## Release
+## Version 5.0.73
 
-Version 5.0.72: Rename outcomes and queue controls were improved. Suggested Windows folder names are validated before a rename.
+Fix rename links, filename validation, filtering, casing, and file logs.
 
-Obsidian Community release **5.0.72** requires Obsidian **1.5.0** or later. [GitHub release](https://github.com/tutivsoft-com/Denali-AI-Renamer-and-Front-Matter-Obsidian/releases/tag/5.0.72).
-
-## Support
-
-Use the plugin's Help or Open documentation command and the support links in its manifest. For a billing problem, retain the original purchase or operation identity and use the account portal. Do not share passwords or session tokens.
+Requires Obsidian 1.5.0 or later. [GitHub releases](https://github.com/tutivsoft-com/Denali-AI-Renamer-and-Front-Matter-Obsidian/releases).
