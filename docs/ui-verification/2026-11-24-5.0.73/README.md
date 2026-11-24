@@ -1,6 +1,6 @@
 # Denali AI Renamer 5.0.73 UI audit
 
-24 November 2026, Windows 11. This checkpoint verifies the exact public bundle and records the native cases still open. The desktop fixture is ready for Obsidian 1.15.1. No native interaction or screenshot has been recorded at this checkpoint.
+24 November 2026, Windows 11. The exact public bundle was verified. The installed Obsidian 1.15.1 opened the disposable vault and displayed its vault trust prompt before Denali could load. The Denali interface remains blocked. One screenshot records the host gate.
 
 ## Exact release
 
@@ -18,6 +18,14 @@
 | `main.js` | `d3be85359018049349e4f141f7341b0a61655036f7b175cc3859f88f6f100f4a` |
 | `manifest.json` | `eda9a9f34dbd8eebed1a54a54bf8d2e81860e4c1a4aadc6cc6cce4cf90dd84cd` |
 | `styles.css` | `78a5bf87317cac7e05d47ae6a536521ba75f45397cf8ddcbad0d1865e1c23e93` |
+
+## Actual desktop result
+
+The normal installed Obsidian launched with a separate application profile on D: and opened the synthetic Denali vault. The native window title showed Obsidian 1.15.1. The first-open dialog asked whether to trust the vault author and explained that plugins stay disabled in Restricted Mode. The audit left the vault trust decision unchanged and closed the isolated window. A subsequent native window enumeration confirmed it had closed.
+
+[Native screenshot of the vault trust gate](screenshots/01-vault-trust-gate.jpg)
+
+The image shows the host gate. Denali settings, commands, and normal success and failure states remain open. Ten Denali screenshots were unavailable because its interface did not open.
 
 ## Findings from the shipped source
 
@@ -44,4 +52,4 @@ Use a disposable vault with small fictional notes in separate folders, an empty 
 | Provider success | At most one short synthetic prompt and brief response through the sanctioned app path |
 | Platforms | Windows desktop, then mobile and minimum Obsidian version if available |
 
-The host automatic review blocked the isolated debug-launch preparation. This route made no application changes. The normal installed app launch with a separate vault and profile is the supported continuation. Live billing and real account activity were outside engineering fixtures.
+Automatic command review blocked the isolated debug-launch preparation with “blocked by policy.” That action did not start a process. The separate normal launch described above reached the native vault trust prompt. The remaining plugin cases need an authorized test vault with its trust decision already made. No account connection, external charge, or live AI call was attempted.
