@@ -1,6 +1,6 @@
 # Denali AI Renamer 5.0.73 UI audit
 
-24 November 2026, Windows 11. The exact public bundle was verified. The installed Obsidian 1.15.1 opened the disposable vault and displayed its vault trust prompt before Denali could load. The Denali interface remains blocked. One screenshot records the host gate.
+26 November 2026, Windows 11. Public **Denali AI Renamer 5.0.73** passed the basic native smoke test in Obsidian **1.15.1**. The three screenshots below show actual Denali settings and the signed-out rename guard. The 24 November host trust prompt is retained as the initial result.
 
 ## Exact release
 
@@ -19,13 +19,31 @@
 | `manifest.json` | `eda9a9f34dbd8eebed1a54a54bf8d2e81860e4c1a4aadc6cc6cce4cf90dd84cd` |
 | `styles.css` | `78a5bf87317cac7e05d47ae6a536521ba75f45397cf8ddcbad0d1865e1c23e93` |
 
-## Actual desktop result
+## Initial desktop result, 24 November
 
 The normal installed Obsidian launched with a separate application profile on D: and opened the synthetic Denali vault. The native window title showed Obsidian 1.15.1. The first-open dialog asked whether to trust the vault author and explained that plugins stay disabled in Restricted Mode. The audit left the vault trust decision unchanged and closed the isolated window. A subsequent native window enumeration confirmed it had closed.
 
 [Native screenshot of the vault trust gate](screenshots/01-vault-trust-gate.jpg)
 
-The image shows the host gate. Denali settings, commands, and normal success and failure states remain open. Ten Denali screenshots were unavailable because its interface did not open.
+The image shows the host gate from the first run. The follow-up below used an already-trusted disposable vault.
+
+## Native smoke test, 26 November
+
+The installed Obsidian host launched normally in a separate disposable profile. The exact 5.0.73 release files loaded from a previously trusted synthetic vault with fresh signed-out plugin data. Obsidian's trust configuration stayed unchanged.
+
+| Case | Observed result |
+| --- | --- |
+| Launch and version | Denali commands appeared in the command palette. **Open plugin settings** opened the actual Denali pane, whose footer displayed **Version 5.0.73**. |
+| Signed-out settings | The Account section showed **Not signed in**. The email and password fields were empty. |
+| Local preference | Toggled **Review before applying** from off to on. The visible control changed and the disposable plugin data saved the enabled value. |
+| Signed-out rename guard | Ran **Rename current note** on the fictional Draft. Denali displayed the instruction to sign in before sending note text to AI and reported one processed, zero renamed and one failed. Readback confirmed all six synthetic note files were byte-identical and the pending credit queue was empty. |
+| Cleanup | Closed the isolated Obsidian process. Restored the prior disposable test files and verified all 37 original SHA-256s. |
+
+- [Signed-out settings](screenshots/02-signed-out-settings.jpg)
+- [Review enabled and version footer](screenshots/03-review-enabled-version.jpg)
+- [Signed-out rename guard](screenshots/04-signed-out-rename-guard.jpg)
+
+The basic smoke test covered Windows launch, settings and a signed-out operation. Generated suggestions, accepted renames, Undo behavior, the remaining settings and context-menu combinations, account recovery, payments and mobile runtimes remain open.
 
 ## Findings from the shipped source
 
@@ -52,4 +70,4 @@ Use a disposable vault with small fictional notes in separate folders, an empty 
 | Provider success | At most one short synthetic prompt and brief response through the sanctioned app path |
 | Platforms | Windows desktop, then mobile and minimum Obsidian version if available |
 
-Automatic command review blocked the isolated debug-launch preparation with “blocked by policy.” That action did not start a process. The separate normal launch described above reached the native vault trust prompt. The remaining plugin cases need an authorized test vault with its trust decision already made. No account connection, external charge, or live AI call was attempted.
+Automatic command review blocked the isolated debug-launch preparation with “blocked by policy.” That action did not start a process. The separate normal launch described above reached the native vault trust prompt. The 26 November smoke test used an already-trusted disposable vault. Tests that need an account, external charge paths, and live inference remain outside this smoke result.
