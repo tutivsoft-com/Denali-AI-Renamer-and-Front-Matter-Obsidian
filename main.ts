@@ -1,4 +1,4 @@
-import {syncEntitlements} from "./constance-v2";
+import { accountBalance, syncEntitlements } from "./constance-v2";
 import { initializeMatomo } from "./matomo-plugin";
 import { selectedFiles, markdownFile, registerSelectionAction } from "./selection-scope";
 import { diagnostics } from "./diagnostics";
@@ -580,6 +580,43 @@ export default class DenaliAIFileRenamer extends Plugin {
     renameModal: DenaliAIOptionsModal | null = null;
 
     lastRenameDetails: string[] = [];
+    private lastRename?: { file: TFile; from: string; to: string };
+    private undoInProgress = false;
+
+    rememberRename(file: TFile, from: string, to: string): void {
+        this.lastRename = { file, from, to };
+    }
+
+    private async undoLastRename(): Promise<void> {
+        const rename = this.lastRename;
+        if (this.undoInProgress) return;
+        if (!rename) {
+            new Notice('No Denali rename to undo in this session.');
+            return;
+        }
+        const { file, from, to } = rename;
+        if (file.path !== to || this.app.vault.getAbstractFileByPath(to) !== file) {
+            new Notice('The renamed note has moved or been removed. Denali could not undo the rename.');
+            return;
+        }
+        if (this.app.vault.getAbstractFileByPath(from)) {
+            new Notice('The original path is occupied. Move that item before undoing the rename.');
+            return;
+        }
+
+        this.undoInProgress = true;
+        try {
+            await this.app.fileManager.renameFile(file, from);
+            if (this.lastRename === rename) this.lastRename = undefined;
+            this.lastRenameDetails.push(`Restored ${from} from ${to}. Credits were unchanged.`);
+            new Notice(`Denali restored ${from}. Credits were unchanged.`);
+        } catch (error) {
+            diagnostics.failure('operation.undo_failed', error);
+            new Notice('Denali could not undo the rename. Check that the original folder exists and is writable.');
+        } finally {
+            this.undoInProgress = false;
+        }
+    }
     private logWrites: Promise<void> = Promise.resolve();
     private logWriteFailed = false;
 
@@ -697,6 +734,7 @@ diagnosticStartupEnd = diagnostics?.start?.("startup.initialize") ?? (() => {});
             modal.open();
         } });
         this.addCommand({ id: 'show-ai-request-queue', name: 'Show AI request queue', callback: () => this.aiQueue.open() });
+        this.addCommand({ id: 'undo-last-rename', name: 'Undo last rename', callback: () => this.undoLastRename() });
 
         this.addCommand({
             id: 'open-denali-ai-options',
@@ -709,7 +747,7 @@ diagnosticStartupEnd = diagnostics?.start?.("startup.initialize") ?? (() => {});
                 }
                 if (this.renameModal) this.renameModal.close();
                 this.renameModal = new DenaliAIOptionsModal(this.app, this, activeFile);
-                this.renameModal.open();
+                this.renameModal.openForReview();
             }
         });
 
@@ -988,9 +1026,9 @@ try {
                 return false;
             }
             if (response.status < 200 || response.status >= 300) throw new Error(`HTTP ${response.status}`);
-            const entitlements = response.json?.data;
-            const freeRemaining = Math.max(0, Number(entitlements?.free_usage?.remaining) || 0);
-            const paidBalance = Math.max(0, Number((entitlements?.credits?.total_available ?? entitlements?.credits?.balance)) || 0);
+            const entitlements = accountBalance(response.json?.data, CONSTANCE_APP_ID);
+            const freeRemaining = entitlements.free_usage.remaining;
+            const paidBalance = entitlements.credits.balance;
             settings.availableCredits = freeRemaining;
             settings.purchasedCredits = paidBalance;
             await this.saveSettings();
@@ -1018,6 +1056,7 @@ function matchesUntitledPrefix(filename: string, keywords: string): boolean {
 }
 
 type RenameOutcome = 'renamed' | 'unchanged' | 'skipped' | 'cancelled' | 'failed';
+type ReviewedRename = { path: string; content: string; filename: string; folder: string | null };
 
 class FileRenamer {
     app: App;
@@ -1218,9 +1257,8 @@ try {
         if (fileNameCase !== 'original') {
             const stopWordList = stopWords.split(',').map(word => word.trim().toLowerCase());
             name = name.split(/\s+/).filter(word => !stopWordList.includes(word.toLowerCase())).join(' ');
-            if (fileNameCase !== 'camel' && characterReplacement) name = name.replace(/\s/g, characterReplacement);
         }
-        name = this.applyCaseStyle(name).trim();
+        name = this.applyCaseStyle(name, characterReplacement).trim();
         if (!name || /[\\/:*?"<>|\u0000-\u001f]/.test(name) || /^\.+$/.test(name)) throw new Error('Enter a valid filename.');
         const date = new Date(file.stat.mtime);
         const timestamp = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')} ${date.getHours().toString().padStart(2, '0')}-${date.getMinutes().toString().padStart(2, '0')}-${date.getSeconds().toString().padStart(2, '0')}`;
@@ -1244,8 +1282,8 @@ try {
     }
 
     /** Apply one rename without changing note content. Cancellation never promises a refund. */
-    async processRename(file: TFile, suggestedName?: string, initialAiSuggestions?: { filename: string | null; folder: string | null } | null, preview?: (path: string) => void): Promise<RenameOutcome> {
-        const originalPath = file.path;
+    async processRename(file: TFile, review?: ReviewedRename, preview?: (path: string) => void): Promise<RenameOutcome> {
+        const originalPath = review?.path ?? file.path;
         const charge: { state: 'pending' | 'used' | 'unused' } = { state: 'unused' };
         const chargeDetails = () => charge.state === 'used'
             ? ' One credit was used.'
@@ -1258,12 +1296,15 @@ try {
             this.log(`Preparing ${originalPath}.`);
             const content = await this.app.vault.read(file);
             if (this.cancelCheck?.()) return cancelled();
+            if (review && (file.path !== originalPath || content !== review.content)) {
+                return this.outcome('skipped', `Skipped ${originalPath}: the note changed after its suggestion was generated. No credit was used.`);
+            }
             const body = removeFrontmatterBlock(content);
             if (!body.trim()) return this.outcome('skipped', `Skipped ${originalPath}: the note body is empty.`);
-            const suggestions = initialAiSuggestions || await this.getCombinedAiSuggestions(body, file.name);
+            const suggestions = review ?? await this.getCombinedAiSuggestions(body, file.name);
             if (this.cancelCheck?.()) return cancelled();
             if (!suggestions) return this.outcome('skipped', `Skipped ${originalPath}: its suggestion was removed from the queue.`);
-            const name = suggestedName !== undefined ? suggestedName : suggestions.filename;
+            const name = suggestions.filename;
             if (!name) return this.outcome('failed', `Failed ${originalPath}: no filename suggestion was available. No credit was used.`);
             if (this.plugin.settings.autoSubfolder && suggestions.folder && !normalizeFolderSuggestion(suggestions.folder)) {
                 this.log('Ignoring an unsafe folder suggestion and keeping the current folder.');
@@ -1278,7 +1319,7 @@ try {
             }
             if (destination.folder && !(this.app.vault.getAbstractFileByPath(destination.folder) instanceof TFolder)) throw new Error('Destination is not a folder.');
             if (this.cancelCheck?.()) return cancelled();
-            if (file.path !== originalPath || await this.app.vault.read(file) !== content) return this.outcome('skipped', `Skipped ${originalPath}: the note changed during preparation. No credit was used.`);
+            if (await this.app.vault.read(file) !== content || file.path !== originalPath) return this.outcome('skipped', `Skipped ${originalPath}: the note changed during preparation. No credit was used.`);
             if (this.cancelCheck?.()) return cancelled();
             if (this.plugin.settings.backupEnabled) await this.createBackup(file);
             if (this.cancelCheck?.()) return cancelled();
@@ -1304,6 +1345,7 @@ try {
             preview?.(destination.path);
             if (destination.path === file.path) return this.outcome('unchanged', `Unchanged ${originalPath}.${chargeDetails()}`);
             await this.app.fileManager.renameFile(file, destination.path);
+            this.plugin.rememberRename(file, originalPath, destination.path);
             return this.outcome('renamed', `Renamed ${originalPath} to ${destination.path}.${this.cancelCheck?.() ? ' Cancellation arrived after the rename began.' : ''}`);
         } catch (error) {
             diagnostics.failure('operation.rename_failed', error);
@@ -1314,17 +1356,17 @@ try {
 
     // Removed processBatchRename from FileRenamer. It now resides only in DenaliAIOptionsModal.
 
-    applyCaseStyle(name: string): string {
+    applyCaseStyle(name: string, separator: string): string {
         switch (this.plugin.settings.fileNameCase) {
             case 'kebab':
-                return name.toLowerCase().replace(/\s/g, '-').replace(/--+/g, '-');
+                return name.toLowerCase().replace(/\s/g, separator || '-').replace(/--+/g, '-');
             case 'camel':
                 return name.split(/[\s_-]+/).filter(Boolean).map((word, index) => {
                     const first = word.charAt(0);
                     return (index === 0 ? first.toLowerCase() : first.toUpperCase()) + word.slice(1);
                 }).join('');
             case 'lowercase':
-                return name.toLowerCase().replace(/\s/g, '');
+                return name.toLowerCase().replace(/\s/g, separator);
             case 'original':
             default:
                 return name;
@@ -1422,7 +1464,7 @@ try {
             if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('The AI response must be a JSON object.');
             let filename = typeof parsed.filename === 'string' ? parsed.filename.trim() : null;
             const folder = typeof parsed.folder === 'string' ? parsed.folder.trim() : null;
-            if (filename) filename = filename.substring(0, maxOutputLength).replace(/[\\/:*?"<>|]/g, ' ').replace(/\s+/g, '-').replace(/^-+|-+$/g, '');
+            if (filename) filename = filename.substring(0, maxOutputLength).replace(/[\\/:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim();
             if (filename) this.log(`AI suggested filename: **${filename}**`);
             if (autoSubfolder && folder) this.log(`AI suggested folder: **${folder}**`);
             return { filename, folder };
@@ -1459,14 +1501,10 @@ class DenaliAIOptionsModal extends Modal {
     cancelButton: HTMLButtonElement;
     fileRenamer: FileRenamer; // Instance of FileRenamer for single file operations
 
-    private suggestedName: string = '';
     private nameInput: HTMLInputElement;
     private editContainer: HTMLElement;
     private initialRenameDone: boolean = false;
-    private initialAiSuggestions: {
-        filename: string | null;
-        folder: string | null;
-    } | null = null;
+    private reviewRequested = false;
 
     private cancelOperation(): void {
         if (this.finished || this.isCancelled) return;
@@ -1515,6 +1553,11 @@ class DenaliAIOptionsModal extends Modal {
         return show;
     }
 
+    openForReview(): void {
+        this.reviewRequested = true;
+        this.open();
+    }
+
     start(): void {
         if (this.plugin.support.automaticWindowsEnabled() || this.plugin.settings.renameChoice === 'interactive' || this.plugin.settings.reviewBeforeApply) this.open();
         else this.onOpen();
@@ -1561,7 +1604,7 @@ const diagnosticAction29 = () => {
         }
 
 
-        if (this.plugin.settings.renameChoice === 'interactive' || this.plugin.settings.reviewBeforeApply) {
+        if (this.reviewRequested || this.plugin.settings.renameChoice === 'interactive' || this.plugin.settings.reviewBeforeApply) {
             if (this.file instanceof TFile) {
                 const isUntitled = matchesUntitledPrefix(this.file!.name, this.plugin.settings.untitledKeywords);
                 if (this.plugin.settings.lookForUntitled && !isUntitled) {
@@ -1609,18 +1652,16 @@ const diagnosticAction29 = () => {
             }
         }
 
-        if (this.file instanceof TFolder || this.plugin.settings.renameChoice === 'automatic') {
-            if (this.file instanceof TFolder) {
-                this.progressBar = this.contentEl.createEl('div', { cls: 'denali-progress-bar-container' });
-                this.progressBar.createEl('div', { cls: 'denali-progress-bar' });
-                this.progressLabel = this.contentEl.createEl('p');
-                this.updateProgressBar();
-            }
-            this.cancelButton = modalEl.createEl('button', { text: 'Cancel', cls: 'mod-warning' });
-            this.cancelButton.onclick = diagnostics.wrap("main.dom_1", () => {
-                this.cancelOperation();
-            });
+        if (this.file instanceof TFolder) {
+            this.progressBar = this.contentEl.createEl('div', { cls: 'denali-progress-bar-container' });
+            this.progressBar.createEl('div', { cls: 'denali-progress-bar' });
+            this.progressLabel = this.contentEl.createEl('p');
+            this.updateProgressBar();
         }
+        this.cancelButton = modalEl.createEl('button', { text: 'Cancel', cls: 'mod-warning' });
+        this.cancelButton.onclick = diagnostics.wrap("main.dom_1", () => {
+            this.cancelOperation();
+        });
         this.contentEl.createEl('p', { text: `Version ${this.plugin.manifest.version}`, cls: 'denali-version' });
 
 }; return diagnostics?.run ? diagnostics.run("main.onOpen", diagnosticAction29) : diagnosticAction29();
@@ -1653,24 +1694,22 @@ try {
                 this.record('failed'); this.finish(); return;
             }
 
-            this.suggestedName = aiSuggestions.filename;
-            this.initialAiSuggestions = aiSuggestions;
-
             this.editContainer = this.contentEl.createEl('div', { cls: 'denali-edit-container' });
             this.editContainer.createEl('label', { text: 'Suggested filename:', cls: 'denali-label' });
             this.nameInput = this.editContainer.createEl('input', { type: 'text', cls: 'denali-input' });
-            this.nameInput.value = this.suggestedName;
+            this.nameInput.value = aiSuggestions.filename;
             const updatePreview = this.addPreview(this.editContainer, this.nameInput, file, aiSuggestions.folder);
 
             const buttonContainer = this.editContainer.createEl('div', { cls: 'denali-button-container' });
             const acceptButton = buttonContainer.createEl('button', { text: 'Rename', cls: 'mod-cta' });
-            const cancelButton = buttonContainer.createEl('button', { text: 'Cancel', cls: 'mod-warning' });
+            buttonContainer.appendChild(this.cancelButton);
             this.cancelReview = () => {
                 this.logStatus(`Cancelled ${originalPath} before application. No credit was used.`);
                 this.record('cancelled');
                 this.finish();
             };
-            this.contentEl.createEl('p', { text: `Version ${this.plugin.manifest.version}`, cls: 'denali-version' });
+            const version = this.contentEl.querySelector('.denali-version');
+            if (version) this.contentEl.appendChild(version);
 
             acceptButton.onclick = diagnostics.wrap("main.dom_2", async () => {
 const diagnosticEnd31 = diagnostics?.start?.("main.background.70508") ?? (() => {});
@@ -1685,14 +1724,10 @@ try {
                 this.nameInput.disabled = true;
                 this.logStatus(`User accepted new name: **${this.nameInput.value}**`);
                 this.logStatus('Starting rename...');
-                // Pass the user-reviewed filename and optional folder suggestion.
                 try {
-                    if (file.path !== originalPath || await this.app.vault.read(file) !== fileContent) {
-                        this.logStatus('Skipped: the note changed while its suggestion was open. No credit was used.');
-                        this.record('skipped');
-                    } else {
-                        this.record(await this.fileRenamer.processRename(file, this.nameInput.value, this.initialAiSuggestions, updatePreview));
-                    }
+                    this.record(await this.fileRenamer.processRename(file, {
+                        path: originalPath, content: fileContent, filename: this.nameInput.value, folder: aiSuggestions.folder,
+                    }, updatePreview));
                 } catch (error) {
                     diagnostics.failure('operation.single_review_failed', error);
                     this.logStatus(`Failed ${originalPath}: the note could not be prepared.`, true);
@@ -1703,9 +1738,6 @@ try {
 } catch (diagnosticError31) { diagnostics?.failure?.("main.background.70508", diagnosticError31); throw diagnosticError31; } finally { diagnosticEnd31(); }
 });
 
-            cancelButton.onclick = diagnostics.wrap("main.dom_3", () => {
-                this.cancelOperation();
-            });
         } catch (error) {
 diagnostics.failure("main.caught_24", error);
             this.logStatus('Could not prepare a suggestion. Check your connection and try again.', true);
@@ -1818,12 +1850,9 @@ try {
                 skip.disabled = true;
                 input.disabled = true;
                 try {
-                    if (file.path !== currentPath || await this.app.vault.read(file) !== fileContent) {
-                        this.logStatus(`Skipped ${currentPath}: the note changed while its suggestion was open. No credit was used.`);
-                        finishReview('skipped');
-                        return;
-                    }
-                    finishReview(await this.fileRenamer.processRename(file, input.value, suggestions, updatePreview));
+                    finishReview(await this.fileRenamer.processRename(file, {
+                        path: currentPath, content: fileContent, filename: input.value, folder: suggestions.folder,
+                    }, updatePreview));
                 } catch (error) {
                     diagnostics.failure('operation.review_failed', error);
                     this.logStatus(`Failed ${currentPath}: the note could not be prepared.`, true);
@@ -1949,7 +1978,7 @@ try {
         };
 
         const diagnosticStage43 = diagnostics?.start?.("settings.render.stage_3") ?? (() => {});
-toggle('reviewBeforeApply', 'Review before applying', 'Preview and edit each proposed filename before it changes. Off applies changes directly; Undo remains available.');
+toggle('reviewBeforeApply', 'Review before applying', 'Preview and edit each proposed filename before it changes. Off applies changes directly. Use Undo last rename to restore the latest successful rename in this session.');
 diagnosticStage43();
 
         const diagnosticStage44 = diagnostics?.start?.("settings.render.stage_4") ?? (() => {});
@@ -1957,7 +1986,7 @@ choice('aiNameStyle', 'Filename style', 'Balanced makes readable titles. Keyword
 diagnosticStage44();
 
         const diagnosticStage45 = diagnostics?.start?.("settings.render.stage_5") ?? (() => {});
-choice('fileNameCase', 'Filename case', 'Original keeps the AI title. Kebab case uses hyphens, for example annual-budget-review.', { original: 'Original', kebab: 'kebab-case', camel: 'camelCase', lowercase: 'lowercase' });
+choice('fileNameCase', 'Filename case', 'Original keeps the AI title. Kebab case uses the configured word separator, which defaults to a hyphen.', { original: 'Original', kebab: 'kebab-case', camel: 'camelCase', lowercase: 'lowercase' });
 diagnosticStage45();
 
         const diagnosticStage46 = diagnostics?.start?.("settings.render.account") ?? (() => {});
@@ -2023,7 +2052,7 @@ toggle('renameOnCreation', 'Rename new notes automatically', 'Off is recommended
 diagnosticStage54();
 
         const diagnosticStage55 = diagnostics?.start?.("settings.render.stage_13") ?? (() => {});
-toggle('lookForUntitled', 'Only rename untitled notes', 'Limits automatic and batch work to filenames beginning with an untitled keyword.');
+toggle('lookForUntitled', 'Only rename untitled notes', 'Limits renames to filenames beginning with an untitled keyword.');
 diagnosticStage55();
 
         const diagnosticStage56 = diagnostics?.start?.("settings.render.stage_14") ?? (() => {});
@@ -2043,7 +2072,7 @@ text('stopWords', 'Words to omit', 'Comma-separated words removed from suggestio
 diagnosticStage59();
 
         const diagnosticStage60 = diagnostics?.start?.("settings.render.stage_18") ?? (() => {});
-choice('characterReplacement', 'Word separator', 'Used when converting spaces in filenames.', { '-': 'Hyphen (-)', '_': 'Underscore (_)', ' ': 'Space' });
+choice('characterReplacement', 'Word separator', 'Replaces spaces in kebab-case and lowercase filenames.', { '-': 'Hyphen (-)', '_': 'Underscore (_)', ' ': 'Space' });
 diagnosticStage60();
 
 

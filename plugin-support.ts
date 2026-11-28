@@ -67,7 +67,7 @@ return diagnostics.guard("plugin-support.onOpen_1", () => {
     this.titleEl.setText(this.welcome ? "Welcome to " + this.docs.name : this.docs.name + " Help");
     this.contentEl.createEl("p", { text: this.docs.summary });
     const steps = this.contentEl.createEl("ol");
-    ["Open Account to sign in or create an account. Verify your email if prompted.", "Open a Markdown note, choose a filename style, then run the rename action.", "Review the result. Use Undo or the available recovery options if needed."].forEach(text => steps.createEl("li", { text }));
+    ["Open Account to sign in or create an account. Verify your email if prompted.", "Open a Markdown note, choose a filename style, then run the rename action.", "Review the result. Run Undo last rename to restore the most recent rename in this session."].forEach(text => steps.createEl("li", { text }));
     const settings = () => { const target = (this.app as any).setting; target?.open(); target?.openTabById(this.plugin?.manifest.id); this.close(); };
     new Setting(this.contentEl).addButton(button => button.setButtonText("Open account").setCta().onClick(diagnostics.wrap("plugin-support.control_2", settings)))
       .addButton(button => button.setButtonText("Open rename options").onClick(() => {

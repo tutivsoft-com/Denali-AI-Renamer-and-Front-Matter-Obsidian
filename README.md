@@ -4,7 +4,7 @@ Rename Markdown notes from their content with the existing automatic or optional
 
 ## Use
 
-Install or update Denali AI Renamer through Obsidian Community plugins, enable it, and connect your account in the plugin settings. Run **Rename current note** from the command palette for the open Markdown note. To rename several notes, select them in the file explorer and choose **Denali: Rename selected notes** from the context menu. Enable **Review before applying** to preview and edit each proposed filename before it changes. Existing preferences and local recovery records are retained.
+Install or update the plugin through Obsidian Community plugins, enable it, and open its settings. Use the existing plugin commands for the selected note, text or files. Existing preferences and local recovery records are retained.
 
 ## Account and billing
 
@@ -16,7 +16,7 @@ New purchases use Paddle and USD. Existing historical purchases retain their ori
 
 ## Privacy and recovery
 
-Account requests send authentication and billing information to Constance. Passwords are not saved. Session credentials and recovery state are kept in local plugin settings. Billing requests do not include note contents. When you request a filename suggestion, Denali sends text from the Markdown note to OpenRouter, up to the configured input limit. Matomo receives basic usage events without note contents. The local diagnostic buffer is separate from automatic startup and plugin error reports sent to Datadog. Reports include the plugin version, platform, error details and recent action names. Credentials are redacted; details from a failed operation can include file paths or content.
+Account requests send authentication and billing information to Constance. Passwords are not saved. Session credentials and recovery state are kept in local plugin settings. Billing requests do not contain note or image contents. Requested AI actions send the selected input directly to the existing AI service. Basic app usage events use the existing analytics service without note contents. The local diagnostic buffer is separate from automatic startup and plugin error reports sent to Datadog. Reports include the plugin version, platform, error details and recent action names. Credentials are redacted; details from a failed operation can include file paths or content.
 
 Uncertain older billing records are retained and are never replayed as new v2 charges. Connect the original account and contact support if an earlier operation needs recovery.
 
@@ -24,8 +24,8 @@ Uncertain older billing records are retained and are never replayed as new v2 ch
 
 Fix rename links, filename validation, filtering, casing, and file logs.
 
-Requires Obsidian 1.5.0 or later. [GitHub release 5.0.73](https://github.com/tutivsoft-com/Denali-AI-Renamer-and-Front-Matter-Obsidian/releases/tag/5.0.73).
+Requires Obsidian 1.5.0 or later. [GitHub releases](https://github.com/tutivsoft-com/Denali-AI-Renamer-and-Front-Matter-Obsidian/releases).
 
 ## Support
 
-Choose **Open Help** in the plugin settings or run **Open documentation** from the command palette. Run **Copy diagnostic log** to collect details about a rename problem. For billing help, use the account portal and keep the original purchase or operation ID. Keep passwords and session tokens private.
+Use the plugin's Help or Open documentation command and the support links in its manifest. For a billing problem, retain the original purchase or operation identity and use the account portal. Do not share passwords or session tokens.
