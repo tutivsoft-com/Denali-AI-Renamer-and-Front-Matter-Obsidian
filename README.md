@@ -20,6 +20,10 @@ Account requests send authentication and billing information to Constance. Passw
 
 Uncertain older billing records are retained and are never replayed as new v2 charges. Connect the original account and contact support if an earlier operation needs recovery.
 
+## Release 5.0.75
+
+Improves rename review, eligibility, and undo. Skips stale reviewed renames. [Release on GitHub](https://github.com/tutivsoft-com/Denali-AI-Renamer-and-Front-Matter-Obsidian/releases/tag/5.0.75).
+
 ## Version 5.0.73
 
 Fix rename links, filename validation, filtering, casing, and file logs.
